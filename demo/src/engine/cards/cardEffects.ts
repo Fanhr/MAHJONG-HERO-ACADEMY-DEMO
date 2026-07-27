@@ -342,8 +342,18 @@ export const cardLogic: CardLogic = {
     }
 
     s.rngState = rng.state();
-    if (handled && !loggedDetail)
-      pushEvent(s, 'card', `${me.name} 使用了【${label}】`, true, { player: me.id, cardId: action.cardId });
+    if (handled) {
+      // 卡牌效果激活：向全场公布（弹窗用，publicInfo=false 避免与详情日志重复）
+      pushEvent(s, 'card-activate', `${me.name} 触发了【${label}】`, false, {
+        player: me.id,
+        cardId: action.cardId,
+        name: label,
+        desc: def?.desc ?? '',
+        target: target >= 0 ? target : undefined,
+      });
+      if (!loggedDetail)
+        pushEvent(s, 'card', `${me.name} 使用了【${label}】`, true, { player: me.id, cardId: action.cardId });
+    }
     return handled;
   },
 

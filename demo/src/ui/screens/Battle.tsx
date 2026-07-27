@@ -14,6 +14,7 @@ import SkillGuide from '../components/SkillGuide';
 import TenpaiHint from '../components/TenpaiHint';
 import LogPanel from '../components/LogPanel';
 import AttackLayer from '../components/AttackLayer';
+import CardToastLayer from '../components/CardToastLayer';
 import TileView from '../components/TileView';
 import { HoverContext } from '../hoverContext';
 import { analyzeTenpai } from '../waits';
@@ -42,6 +43,7 @@ export default function Battle() {
   const humanId = useGame((s) => s.humanId);
   const floaters = useGame((s) => s.floaters);
   const attacks = useGame((s) => s.attacks);
+  const toasts = useGame((s) => s.toasts);
   const busy = useGame((s) => s.busy);
   const humanAction = useGame((s) => s.humanAction);
 
@@ -166,6 +168,8 @@ export default function Battle() {
     <div className="relative flex min-h-full flex-col bg-radial-table px-3 py-3">
       {/* 伤害飞行动画层（来源 → 目标） */}
       <AttackLayer attacks={attacks} />
+      {/* 卡牌激活弹窗层 */}
+      <CardToastLayer toasts={toasts} />
       {/* 顶栏 */}
       <div className="glass mb-2 flex items-center justify-between rounded-xl px-4 py-2 text-sm">
         <span className="font-bold text-gold">麻神力攻学院 · 入学测试</span>

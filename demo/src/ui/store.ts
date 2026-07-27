@@ -26,6 +26,14 @@ export interface Attack {
   to: number;
 }
 
+/** 卡牌激活弹窗：直观展示“某玩家因某卡实现了某效果”。 */
+export interface CardToast {
+  id: string;
+  playerName: string;
+  cardName: string;
+  desc: string;
+}
+
 interface UIStore {
   screen: 'select' | 'briefing' | 'battle' | 'result';
   state: GameState | null;
@@ -33,6 +41,7 @@ interface UIStore {
   humanId: number;
   floaters: Floater[];
   attacks: Attack[];
+  toasts: CardToast[];
   lastSeq: number;
   busy: boolean;
   demoResult: 'pass' | 'fail' | null;
@@ -53,11 +62,12 @@ export const useGame = create<UIStore>((set, get) => ({
   humanId: 0,
   floaters: [],
   attacks: [],
+  toasts: [],
   lastSeq: 0,
   busy: false,
   demoResult: null,
 
-  toSelect: () => set({ screen: 'select', state: null, decision: null, floaters: [], attacks: [], demoResult: null }),
+  toSelect: () => set({ screen: 'select', state: null, decision: null, floaters: [], attacks: [], toasts: [], demoResult: null }),
 
   newGame: (_heroId, seed = Math.floor(Math.random() * 1e9)) => {
     // 玩家固定为「咯哒」(山鸣学院)，3 名人机为「爱麻鸽1~3号」
@@ -68,7 +78,7 @@ export const useGame = create<UIStore>((set, get) => ({
       { heroId: 'aimage', isAI: true, name: '爱麻鸽3号' },
     ];
     const s = startGame({ seed, heroes });
-    set({ screen: 'battle', state: s, decision: null, floaters: [], attacks: [], lastSeq: 0, busy: false, demoResult: null });
+    set({ screen: 'battle', state: s, decision: null, floaters: [], attacks: [], toasts: [], lastSeq: 0, busy: false, demoResult: null });
     get()._advance();
   },
 
@@ -145,8 +155,22 @@ export const useGame = create<UIStore>((set, get) => ({
     const fresh = s.events.filter((e) => e.seq > last);
     const add: Floater[] = [];
     const beams: Attack[] = [];
+    const toasts: CardToast[] = [];
     for (const e of fresh) {
-      if ((e.type === 'damage' || e.type === 'skill-damage') && e.data) {
+      if (e.type === 'card-activate' && e.data) {
+        const data = e.data as Record<string, unknown>;
+        const player = Number(data.player);
+        const cardName = typeof data.name === 'string' ? data.name : '';
+        const desc = typeof data.desc === 'string' ? data.desc : '';
+        if (!Number.isNaN(player) && cardName) {
+          toasts.push({
+            id: `t${e.seq}-${Math.random().toString(36).slice(2, 6)}`,
+            playerName: s.players[player]?.name ?? `玩家${player}`,
+            cardName,
+            desc,
+          });
+        }
+      } else if ((e.type === 'damage' || e.type === 'skill-damage') && e.data) {
         const data = e.data as Record<string, unknown>;
         const seat = Number(data.target);
         const amount = Number(data.amount);
@@ -172,6 +196,12 @@ export const useGame = create<UIStore>((set, get) => ({
       set((st) => ({ attacks: [...st.attacks, ...beams] }));
       for (const b of beams) {
         setTimeout(() => set((st) => ({ attacks: st.attacks.filter((x) => x.id !== b.id) })), 700);
+      }
+    }
+    if (toasts.length) {
+      set((st) => ({ toasts: [...st.toasts, ...toasts] }));
+      for (const t of toasts) {
+        setTimeout(() => set((st) => ({ toasts: st.toasts.filter((x) => x.id !== t.id) })), 2800);
       }
     }
     if (add.length) {

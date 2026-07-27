@@ -65,7 +65,7 @@ export default function TileView({
         ${clickable ? 'cursor-pointer hover:-translate-y-1.5 hover:shadow-gold' : 'cursor-default'}
         ${selected ? '-translate-y-2 ring-2 ring-gold shadow-gold' : ''}
         ${locked ? 'ring-2 ring-amber-400 shadow-[0_0_10px_rgba(251,191,36,0.6)]' : ''}
-        ${highlight ? 'ring-2 ring-sky-400 shadow-[0_0_12px_rgba(56,189,248,0.85)] -translate-y-0.5' : ''}
+        ${highlight ? 'ring-2 ring-gold shadow-[0_0_14px_rgba(244,166,42,0.95)] brightness-125 -translate-y-0.5 z-20' : ''}
         ${dim ? 'opacity-40' : ''}
         ${glow ? 'ring-2 ring-jade shadow-neon' : ''}`}
     >
