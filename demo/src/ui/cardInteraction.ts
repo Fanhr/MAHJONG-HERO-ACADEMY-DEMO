@@ -5,12 +5,14 @@
  * 凡是从「自己手牌」中取出的牌都必须由玩家手动选择；指定目标同理由玩家点选。
  * 未在此登记的卡牌/技能没有交互步骤，点击后直接结算（AI 走引擎内的合理默认）。
  */
-export type InteractKind = 'target' | 'handTiles' | 'wantTiles' | 'pickSuit';
+export type InteractKind = 'target' | 'handTiles' | 'wantTiles' | 'pickSuit' | 'discardPick';
 
 export interface InteractStep {
   kind: InteractKind;
-  /** 需要选择的数量（handTiles / wantTiles）。 */
+  /** 需要选择的数量上限（handTiles / wantTiles / discardPick）。 */
   count?: number;
+  /** 最少选择数量（默认 1）；用于“≤N 张”类效果，允许选少于上限。 */
+  min?: number;
   /** 选择结果写入 payload 的字段（handTiles / wantTiles）。 */
   field?: 'tiles' | 'give';
   /** 面板提示语。 */
@@ -21,19 +23,19 @@ export interface InteractStep {
 
 /** 卡牌交互步骤。key 为 cardId；缺省表示无需交互。 */
 export const CARD_STEPS: Record<string, InteractStep[]> = {
-  // 我要重开：从手牌选 3 张换出（换回牌山随机 3 张——随机部分无需选择）
+  // 我要重开：从手牌选 ≤3 张换出（换回牌山随机等量）
   chongkai: [
-    { kind: 'handTiles', count: 3, field: 'tiles', prompt: '选择 3 张要换出的手牌（换回牌山随机 3 张）' },
+    { kind: 'handTiles', count: 3, min: 1, field: 'tiles', prompt: '选择 1~3 张要换出的手牌（换回牌山随机等量）' },
   ],
   // 就差这张：选 1 张已有牌召唤同名，再选 1 张换出
   jiucha: [
     { kind: 'handTiles', count: 1, field: 'tiles', prompt: '选择要召唤同名的手牌' },
     { kind: 'handTiles', count: 1, field: 'give', prompt: '选择用来置换的 1 张手牌' },
   ],
-  // 拿来吧你：选 2 张想要的牌 + 选 2 张换出的手牌（置换顺序随机）
+  // 拿来吧你：选 ≤2 张想要的牌 + 选 ≤2 张换出的手牌（置换顺序随机）
   nalai: [
-    { kind: 'wantTiles', count: 2, field: 'tiles', prompt: '选择 2 张想要的牌（可重复）' },
-    { kind: 'handTiles', count: 2, field: 'give', prompt: '选择 2 张换出的手牌' },
+    { kind: 'wantTiles', count: 2, min: 1, field: 'tiles', prompt: '选择 1~2 张想要的牌（可重复）' },
+    { kind: 'handTiles', count: 2, min: 1, field: 'give', prompt: '选择 1~2 张换出的手牌（需与想要的数量相同）' },
   ],
   // 懂你意思：指定对手 + 选自己换出的 1 张（对方选哪张由对方决定——他家不可见）
   dongni: [
@@ -51,6 +53,11 @@ export const CARD_STEPS: Record<string, InteractStep[]> = {
   // —— 运 ——
   buduibudui: [{ kind: 'pickSuit', prompt: '指定一种花色：下次摸牌不为该花色则重摸一次' }],
   duidedui: [{ kind: 'pickSuit', prompt: '指定一种花色：下次摸牌为该花色则增加一次摸切' }],
+  // 如果可以：从自己弃牌堆选 1 张换回（置换 1 张手牌）
+  ruguo: [
+    { kind: 'discardPick', count: 1, field: 'tiles', prompt: '从你的弃牌堆中选择 1 张要换回的牌' },
+    { kind: 'handTiles', count: 1, field: 'give', prompt: '选择 1 张手牌作为交换（放入弃牌堆）' },
+  ],
   yanguang: [{ kind: 'target', prompt: '指定 1 名角色，免疫其对你造成的一次伤害' }],
   // —— 生 ——
   guanghe: [{ kind: 'pickSuit', prompt: '指定一种花色：场上每打出 1 张该花色牌，你回复 3 点生命' }],

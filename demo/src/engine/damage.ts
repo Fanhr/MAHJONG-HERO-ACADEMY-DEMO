@@ -2,7 +2,7 @@
  * 即时伤害快照结算：先锁定快照（和牌者/伤害/目标）→ 同步扣血 → 统一判定淘汰 →
  * （反弹/亡语类后置，留待技能层扩展）。牌型与番数保密，对外事件仅含伤害数值。
  */
-import { fanToDamage } from './constants';
+import { baseDamage, TSUMO_MUL } from './constants';
 import { DEFAULT_HP } from './constants';
 import {
   alivePlayers,
@@ -31,7 +31,9 @@ function notePlayerDamage(p: PlayerState): void {
 export interface WinnerInfo {
   player: PlayerId;
   fan: number;
-  /** 该和牌者的基础伤害（已含出伤加成）；缺省则由 fan 映射。 */
+  /** 牌型役满个数（双倍按 2 计；0 表示非役满）。 */
+  yakumanCount?: number;
+  /** 该和牌者的基础伤害（已含出伤加成）；缺省则由 fan/yakuman 映射。 */
   damage?: number;
   /** 番种明细（结束后揭示用）。 */
   yaku?: string[];
@@ -66,32 +68,32 @@ export function buildRonSnapshot(
 ): DamageSnapshot {
   const entries: DamageEntry[] = winners.map((w) => ({
     target: discarder,
-    amount: w.damage ?? fanToDamage(w.fan),
+    amount: w.damage ?? baseDamage(w.fan, w.yakumanCount ?? 0),
     source: w.player,
     label: '荣和',
   }));
   return { winners, isSelfDraw: false, winningTile, entries };
 }
 
-/** 自摸快照：基础伤害按存活对手人数均分，每位对手各受一份。 */
+/** 自摸快照：1.5 倍口径——每名对手受 baseDamage×1.5/n，总输出为单体 1.5 倍。 */
 export function buildTsumoSnapshot(
   state: GameState,
   winner: PlayerId,
-  baseDamage: number,
+  baseDamageVal: number,
   winningTile: number,
   fan: number
 ): DamageSnapshot {
   const opponents = alivePlayers(state)
     .map((p) => p.id)
     .filter((id) => id !== winner);
-  const per = opponents.length > 0 ? baseDamage / opponents.length : 0;
+  const per = opponents.length > 0 ? (baseDamageVal * TSUMO_MUL) / opponents.length : 0;
   const entries: DamageEntry[] = opponents.map((id) => ({
     target: id,
     amount: per,
     source: winner,
     label: '自摸',
   }));
-  return { winners: [{ player: winner, fan, damage: baseDamage }], isSelfDraw: true, winningTile, entries };
+  return { winners: [{ player: winner, fan, damage: baseDamageVal }], isSelfDraw: true, winningTile, entries };
 }
 
 /**

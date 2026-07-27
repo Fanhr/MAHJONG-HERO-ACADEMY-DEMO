@@ -16,6 +16,7 @@ export interface CardUsePanelProps {
   title: string;
   steps: InteractStep[];
   hand: number[]; // 自己的手牌（牌索引）
+  discards: number[]; // 自己的弃牌堆（用于 discardPick）
   opponents: { id: number; name: string; alive: boolean }[];
   onConfirm: (r: UsePanelResult) => void;
   onCancel: () => void;
@@ -23,11 +24,13 @@ export interface CardUsePanelProps {
 
 const ALL34 = Array.from({ length: 34 }, (_, i) => i);
 
-export default function CardUsePanel({ title, steps, hand, opponents, onConfirm, onCancel }: CardUsePanelProps) {
+export default function CardUsePanel({ title, steps, hand, discards, opponents, onConfirm, onCancel }: CardUsePanelProps) {
   const [stepIdx, setStepIdx] = useState(0);
   const [target, setTarget] = useState<number | undefined>(undefined);
   // handTiles：记录已选手牌的“位置索引”（支持重复牌）
   const [handSel, setHandSel] = useState<Record<number, number[]>>({}); // stepIdx -> hand positions
+  // discardPick：记录选中弃牌堆的位置索引
+  const [discSel, setDiscSel] = useState<Record<number, number[]>>({});
   // wantTiles：记录选中的牌索引列表（可重复）
   const [wantSel, setWantSel] = useState<Record<number, number[]>>({});
   // pickSuit：记录每一步选中的花色
@@ -40,6 +43,8 @@ export default function CardUsePanel({ title, steps, hand, opponents, onConfirm,
     steps.forEach((st, i) => {
       if (st.kind === 'handTiles' && st.field) {
         payload[st.field] = (handSel[i] ?? []).map((pos) => hand[pos]);
+      } else if (st.kind === 'discardPick' && st.field) {
+        payload[st.field] = (discSel[i] ?? []).map((pos) => discards[pos]);
       } else if (st.kind === 'wantTiles' && st.field) {
         payload[st.field] = wantSel[i] ?? [];
       } else if (st.kind === 'pickSuit') {
@@ -47,7 +52,7 @@ export default function CardUsePanel({ title, steps, hand, opponents, onConfirm,
       }
     });
     return { target, payload };
-  }, [steps, handSel, wantSel, suitSel, hand, target]);
+  }, [steps, handSel, discSel, wantSel, suitSel, hand, discards, target]);
 
   if (!step) return null;
 
@@ -60,11 +65,14 @@ export default function CardUsePanel({ title, steps, hand, opponents, onConfirm,
     else onCancel();
   };
 
-  // 当前步骤是否已满足
+  // 当前步骤是否已满足：允许选「1 ~ count」张（min 默认 1）
+  const min = step.min ?? 1;
+  const max = step.count ?? 1;
   let ready = false;
   if (step.kind === 'target') ready = target !== undefined;
-  else if (step.kind === 'handTiles') ready = (handSel[stepIdx]?.length ?? 0) === (step.count ?? 1);
-  else if (step.kind === 'wantTiles') ready = (wantSel[stepIdx]?.length ?? 0) === (step.count ?? 1);
+  else if (step.kind === 'handTiles') ready = (handSel[stepIdx]?.length ?? 0) >= min && (handSel[stepIdx]?.length ?? 0) <= max;
+  else if (step.kind === 'discardPick') ready = (discSel[stepIdx]?.length ?? 0) >= min && (discSel[stepIdx]?.length ?? 0) <= max;
+  else if (step.kind === 'wantTiles') ready = (wantSel[stepIdx]?.length ?? 0) >= min && (wantSel[stepIdx]?.length ?? 0) <= max;
   else if (step.kind === 'pickSuit') ready = !!suitSel[stepIdx];
 
   // 同色约束（乾坤）：已选的第一张决定花色
@@ -76,20 +84,30 @@ export default function CardUsePanel({ title, steps, hand, opponents, onConfirm,
   const toggleHand = (pos: number) => {
     if (step.kind !== 'handTiles') return;
     const cur = handSel[stepIdx] ?? [];
-    const count = step.count ?? 1;
     if (cur.includes(pos)) {
       setHandSel({ ...handSel, [stepIdx]: cur.filter((p) => p !== pos) });
       return;
     }
     if (step.sameSuit && cur.length > 0 && suitOfIndex(hand[pos]) !== suitOfIndex(hand[cur[0]])) return;
-    if (cur.length >= count) return;
+    if (cur.length >= max) return;
     setHandSel({ ...handSel, [stepIdx]: [...cur, pos] });
+  };
+
+  const toggleDiscard = (pos: number) => {
+    if (step.kind !== 'discardPick') return;
+    const cur = discSel[stepIdx] ?? [];
+    if (cur.includes(pos)) {
+      setDiscSel({ ...discSel, [stepIdx]: cur.filter((p) => p !== pos) });
+      return;
+    }
+    if (cur.length >= max) return;
+    setDiscSel({ ...discSel, [stepIdx]: [...cur, pos] });
   };
 
   const addWant = (tile: number) => {
     if (step.kind !== 'wantTiles') return;
     const cur = wantSel[stepIdx] ?? [];
-    if (cur.length >= (step.count ?? 1)) return;
+    if (cur.length >= max) return;
     setWantSel({ ...wantSel, [stepIdx]: [...cur, tile] });
   };
   const clearWant = () => setWantSel({ ...wantSel, [stepIdx]: [] });
@@ -152,7 +170,29 @@ export default function CardUsePanel({ title, steps, hand, opponents, onConfirm,
               })}
             </div>
             <div className="mt-2 text-xs text-muted">
-              已选 {(handSel[stepIdx]?.length ?? 0)} / {step.count}
+              已选 {(handSel[stepIdx]?.length ?? 0)} / 上限 {max}（至少 {min}）
+            </div>
+          </div>
+        )}
+
+        {/* 弃牌堆选择（如果可以） */}
+        {step.kind === 'discardPick' && (
+          <div>
+            <div className="mb-2 text-[11px] text-muted">从你的弃牌堆中点选要换回的牌：</div>
+            {discards.length === 0 ? (
+              <div className="text-sm text-muted">弃牌堆为空</div>
+            ) : (
+              <div className="flex flex-wrap gap-1.5">
+                {discards.map((t, pos) => {
+                  const sel = (discSel[stepIdx] ?? []).includes(pos);
+                  return (
+                    <TileView key={pos} tile={t} size="md" selected={sel} onClick={() => toggleDiscard(pos)} />
+                  );
+                })}
+              </div>
+            )}
+            <div className="mt-2 text-xs text-muted">
+              已选 {(discSel[stepIdx]?.length ?? 0)} / 上限 {max}（至少 {min}）
             </div>
           </div>
         )}
@@ -162,7 +202,7 @@ export default function CardUsePanel({ title, steps, hand, opponents, onConfirm,
           <div>
             <div className="mb-2 flex items-center gap-2 text-xs text-muted">
               <span>
-                已选 {(wantSel[stepIdx]?.length ?? 0)} / {step.count}
+                已选 {(wantSel[stepIdx]?.length ?? 0)} / 上限 {max}（至少 {min}）
               </span>
               <button onClick={clearWant} className="rounded bg-ink-700 px-2 py-0.5 text-[11px] hover:bg-ink-600">
                 清空

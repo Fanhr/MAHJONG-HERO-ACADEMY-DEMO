@@ -317,6 +317,7 @@ export default function Battle() {
           title={activeTitle}
           steps={activeSteps}
           hand={self.hand}
+          discards={self.discards}
           opponents={opponents}
           onConfirm={onConfirmInteractive}
           onCancel={() => setInteractive(null)}

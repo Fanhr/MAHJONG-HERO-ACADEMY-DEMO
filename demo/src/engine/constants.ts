@@ -1,8 +1,8 @@
 /**
- * 全局数值常量（用户确认版）：
+ * 全局数值常量（对齐《番种精选子集与伤害计算公式》）：
  *  - 所有 demo 角色 HP 统一 100（浮点）
- *  - AP：初始 2，每回合 +1，上限默认 5（可按英雄覆盖）
- *  - 番数→基础伤害映射：全部 6 的倍数，兼容 3/4 人自摸均分；役满级 96
+ *  - AP：初始 2，每回合 +1，上限默认 5
+ *  - 和牌基础伤害：0 番 = 6，每番 +6；役满 78×n；累计役满（普通番≥13）封顶 78
  */
 
 export const DEFAULT_HP = 100;
@@ -19,32 +19,25 @@ export const CARD_DRAW_CANDIDATES = 3; // 每次抽卡揭示 3 张
 export const CARD_COOLDOWN_DRAWS = 3; // 使用后第 3 个后续抽卡阶段回池
 export const MELD_RESPONSE_MS = 4000; // 4 秒鸣牌响应窗口（UI 用）
 
-/** 基础伤害上限（役满级趋近值）。 */
-export const DAMAGE_CAP = 96;
-/** 基础伤害下限（1 番）。 */
-export const DAMAGE_FLOOR = 6;
-/** 曲线陡度常数：越小则中低番爬升越快。 */
-const DAMAGE_CURVE_K = 24.5;
+/** 单倍役满基础伤害（与累计役满衔接）。 */
+export const YAKUMAN_BASE = 78;
+/** 自摸 1.5 倍奖励口径系数。 */
+export const TSUMO_MUL = 1.5;
 
 /**
- * 将番数映射为基础伤害。
- *
- * 设计：采用「平滑饱和曲线」而非粗档表，使伤害随番数【连续单调递增】，
- * 高番牌型的伤害显著高于低番，梯度与牌型难度成比例，杜绝“25 番与 40 番同为 60”的断档。
- *   damage(fan) = CAP · (1 − e^(−fan / K))，下限 6、上限 ~96（0.1 精度）。
- * 参考取值：1番≈6、4番≈14、6番≈21、12番≈37、清一色24番≈60、
- *          清一色+清龙40番≈78、四暗刻/字一色64番≈90、役满88番≈93。
+ * 由普通番数与役满个数计算基础伤害 D_base（对齐文档公式）：
+ *   n ≥ 1（牌型役满）   → 78 × n
+ *   n = 0 且 f ≥ 13     → 78（累计役满封顶）
+ *   其余                → 6 × (1 + f)
+ * 0 番即 f = 0 → 6（基础）。
  */
-export function fanToDamage(fan: number): number {
-  const f = Math.max(1, fan);
-  const raw = DAMAGE_CAP * (1 - Math.exp(-f / DAMAGE_CURVE_K));
-  return Math.round(Math.max(DAMAGE_FLOOR, raw) * 10) / 10;
+export function baseDamage(fan: number, yakumanCount = 0): number {
+  if (yakumanCount >= 1) return YAKUMAN_BASE * yakumanCount;
+  if (fan >= 13) return YAKUMAN_BASE;
+  return 6 * (1 + Math.max(0, fan));
 }
 
-/** 立直“升档”系数：在门清/曲线基础上再乘该系数（封顶 96）。 */
-export const RIICHI_UPGRADE_MUL = 1.3;
-
-/** 对给定伤害应用“升一档”（立直用）：×系数并封顶、0.1 精度。 */
-export function upgradeTierDamage(dmg: number): number {
-  return Math.round(Math.min(DAMAGE_CAP, dmg * RIICHI_UPGRADE_MUL) * 10) / 10;
+/** 兼容旧调用：仅按番数映射（非役满档）。 */
+export function fanToDamage(fan: number): number {
+  return baseDamage(fan, 0);
 }

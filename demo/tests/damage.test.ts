@@ -14,14 +14,14 @@ const heroes: HeroChoice[] = [
 ];
 
 describe('伤害快照结算', () => {
-  it('自摸：24 番 → 基础 60，对 3 名对手各均分 20', () => {
+  it('自摸：基础 60，1.5 倍口径对 3 名对手各 30', () => {
     const s = initGame({ seed: 1, heroes });
     const snap = buildTsumoSnapshot(s, 0, 60, 5, 24);
     applyDamageSnapshot(s, snap);
     expect(s.players[0].hp).toBe(100); // 和牌者不受伤
-    expect(s.players[1].hp).toBe(80);
-    expect(s.players[2].hp).toBe(80);
-    expect(s.players[3].hp).toBe(80);
+    expect(s.players[1].hp).toBe(70); // 100 - 60×1.5/3 = 70
+    expect(s.players[2].hp).toBe(70);
+    expect(s.players[3].hp).toBe(70);
     expect(s.winRecords[0].hiddenFace).toBe(true); // 自摸背面朝上
   });
 

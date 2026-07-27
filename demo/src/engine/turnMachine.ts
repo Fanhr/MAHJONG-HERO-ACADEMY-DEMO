@@ -51,7 +51,7 @@ import {
   CARD_COOLDOWN_DRAWS,
   CARD_RESERVE_MAX,
   SAFE_TILE_MAX,
-  fanToDamage,
+  baseDamage,
 } from './constants';
 
 // ---------------------------------------------------------------------------
@@ -525,7 +525,7 @@ function applyWin(s: GameState, snapWinners: WinnerInfo[], isSelfDraw: boolean, 
     ? Math.max(1, alivePlayers(s).filter((p) => p.id !== snapWinners[0].player).length)
     : 1;
   const withDamage: WinnerInfo[] = snapWinners.map((w) => {
-    const base = fanToDamage(w.fan);
+    const base = baseDamage(w.fan, w.yakumanCount ?? 0);
     const outSteps: DamageStep[] = [{ label: '基础伤害', op: 'base', operand: w.fan, after: base }];
     s.winFanContext = w.fan; // 供平和鸽按番数判定
     const outDamage = engineHooks.modifyOutgoingDamage(s, w.player, base, isSelfDraw, outSteps);
@@ -581,21 +581,21 @@ function applyWin(s: GameState, snapWinners: WinnerInfo[], isSelfDraw: boolean, 
   s.phase = 'tribute';
 }
 
-/** 计算和牌的番数与番种明细。 */
+/** 计算和牌的番数、役满个数与番种明细。 */
 function winDetail(
   s: GameState,
   player: PlayerId,
   concealed: number[],
   isTsumo: boolean,
   winningTile: number
-): { fan: number; yaku: string[] } {
+): { fan: number; yakumanCount: number; yaku: string[] } {
   const p = s.players[player];
   const r = evaluateYaku({ concealedTiles: concealed, melds: p.melds, winningTile, isTsumo });
   const bonus = engineHooks.fanBonus(s, player, concealed, isTsumo);
-  if (!r) return { fan: Math.max(1, 1 + bonus), yaku: ['无番和'] };
-  const yaku = r.hits.map((h) => `${h.name} ${h.fan}番`);
-  if (bonus > 0) yaku.push(`英雄加成 +${bonus}番`);
-  return { fan: r.fan + bonus, yaku };
+  if (!r) return { fan: 0, yakumanCount: 0, yaku: ['无番和'] };
+  const yaku = r.hits.map((h) => (r.yakumanCount > 0 ? h.name : `${h.name} ${h.fan}番`));
+  if (bonus > 0 && r.yakumanCount === 0) yaku.push(`英雄加成 +${bonus}番`);
+  return { fan: r.fan + bonus, yakumanCount: r.yakumanCount, yaku };
 }
 
 function cloneMelds(melds: Meld[]): Meld[] {
@@ -609,7 +609,7 @@ function resolveTsumo(s: GameState): void {
   const d = winDetail(s, winner, p.hand, true, tile);
   applyWin(
     s,
-    [{ player: winner, fan: d.fan, yaku: d.yaku, hand: [...p.hand], melds: cloneMelds(p.melds) }],
+    [{ player: winner, fan: d.fan, yakumanCount: d.yakumanCount, yaku: d.yaku, hand: [...p.hand], melds: cloneMelds(p.melds) }],
     true,
     tile
   );
@@ -626,7 +626,7 @@ function resolveRon(s: GameState, winners: PlayerId[]): void {
   const infos: WinnerInfo[] = winners.map((w) => {
     const hand = [...s.players[w].hand, tile];
     const d = winDetail(s, w, hand, false, tile);
-    return { player: w, fan: d.fan, yaku: d.yaku, hand, melds: cloneMelds(s.players[w].melds) };
+    return { player: w, fan: d.fan, yakumanCount: d.yakumanCount, yaku: d.yaku, hand, melds: cloneMelds(s.players[w].melds) };
   });
   s.pending = null;
   applyWin(s, infos, false, tile, discarder);
