@@ -8,7 +8,7 @@ export default function HandBar({
   drawnTile,
   onDiscard,
   safeTiles,
-  safeMode,
+  canSafe,
   onSetSafe,
 }: {
   hand: number[];
@@ -16,7 +16,8 @@ export default function HandBar({
   drawnTile: number | null;
   onDiscard: (tile: number) => void;
   safeTiles: number[]; // 安全牌多重集（物理张数）
-  safeMode: boolean;
+  /** 是否处于摸切阶段且可指定安全牌（右键切换）。 */
+  canSafe: boolean;
   onSetSafe: (tiles: number[]) => void;
 }) {
   const canDiscard = discardable.size > 0;
@@ -48,8 +49,10 @@ export default function HandBar({
     <div className="glass-strong rounded-2xl p-3">
       <div className="mb-2 flex items-center justify-between">
         <span className="text-xs font-semibold text-gold">你的手牌</span>
-        {safeMode ? (
-          <span className="text-[11px] text-amber-300">点击手牌加入/移出安全牌（按张计，最多 {MAX_SAFE} 张）</span>
+        {canSafe ? (
+          <span className="text-[11px] text-amber-300">
+            右键手牌切换安全牌（{safeTiles.length}/{MAX_SAFE}）· 左键打出
+          </span>
         ) : (
           canDiscard && <span className="text-[11px] text-muted">点击一张牌打出</span>
         )}
@@ -60,16 +63,20 @@ export default function HandBar({
           occ.set(t, o + 1);
           const isSafe = o < (safeCount.get(t) ?? 0);
           const ok = discardable.has(t);
-          const clickable = safeMode ? true : ok;
+          const ctx = (e: React.MouseEvent) => {
+            e.preventDefault();
+            if (canSafe) toggle(t, isSafe);
+          };
           return (
             <TileView
               key={i}
               tile={t}
               size="lg"
-              glow={!safeMode && drawnTile !== null && t === drawnTile && i === hand.length - 1}
-              dim={!safeMode && canDiscard && !ok}
+              glow={drawnTile !== null && t === drawnTile && i === hand.length - 1}
+              dim={canDiscard && !ok}
               locked={isSafe}
-              onClick={clickable ? () => (safeMode ? toggle(t, isSafe) : onDiscard(t)) : undefined}
+              onClick={ok ? () => onDiscard(t) : undefined}
+              onContextMenu={ctx}
             />
           );
         })}

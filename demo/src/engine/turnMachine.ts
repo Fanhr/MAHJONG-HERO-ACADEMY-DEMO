@@ -253,6 +253,39 @@ export function settle(s: GameState): void {
     if (s.phase === 'gameOver' || s.phase === 'roundOver' || s.phase === 'roundSafety') return;
     if (s.pending) return;
     if (s.pendingDraw) return;
+    // 上贡阶段：collect 自动跳过无可用非安全牌者；exchange 等和牌者输入
+    if (s.phase === 'tribute') {
+      const pt = s.pendingTribute;
+      if (!pt) {
+        s.phase = 'start';
+        continue;
+      }
+      if (pt.stage === 'collect') {
+        // 自动跳过手牌全是安全牌（无可用非安全牌）的应上贡者
+        while (true) {
+          const idx = pt.offers.findIndex((o) => o.tile === null);
+          if (idx < 0) {
+            pt.stage = 'exchange';
+            break;
+          }
+          const o = pt.offers[idx];
+          const p = s.players[o.from];
+          const safe = new Set(p.safeTiles);
+          const pool = p.hand.filter((x) => !safe.has(x));
+          if (pool.length === 0) {
+            o.tile = -1; // 无可用，跳过
+            continue;
+          }
+          return; // 等该玩家提交上贡牌
+        }
+      }
+      // exchange 阶段：若无任何有效上贡牌，自动结束
+      if (pt.stage === 'exchange' && pt.offers.every((o) => o.tile === null || o.tile < 0)) {
+        finishTribute(s);
+        continue;
+      }
+      return;
+    }
     switch (s.phase) {
       case 'start':
         enterTurnStart(s);
@@ -393,6 +426,22 @@ export function getDecision(s: GameState): Decision | null {
     }
     case 'discard':
       return { actor: s.turn, actions: discardActions(s) };
+    case 'tribute': {
+      const pt = s.pendingTribute;
+      if (!pt) return { actor: s.turn, actions: [] };
+      if (pt.stage === 'collect') {
+        // 当前待提交者：第一个 tile===null 的应上贡者
+        const idx = pt.offers.findIndex((o) => o.tile === null);
+        if (idx < 0) return { actor: pt.winner, actions: [{ type: 'tributeExchange' }] };
+        const actor = pt.offers[idx].from;
+        const p = s.players[actor];
+        const safe = new Set(p.safeTiles);
+        const pool = [...new Set(p.hand.filter((x) => !safe.has(x)))];
+        return { actor, actions: pool.map((t) => ({ type: 'tributeOffer', tile: t })) };
+      }
+      // exchange：和牌者选交换（UI 构造完整 action，这里给占位）
+      return { actor: pt.winner, actions: [{ type: 'tributeExchange' }] };
+    }
     default:
       return { actor: s.turn, actions: [] };
   }
@@ -417,65 +466,58 @@ function handTileValue(hand: readonly number[], t: number): number {
   return sc;
 }
 
-/** 上贡机制（ver2.0 §3.2.1，自动结算版）：F>0 时每名应上贡玩家交 1 张，和牌者至多换回 1 张。 */
-function resolveTribute(s: GameState, winnerId: PlayerId, fan: number, tributaries: PlayerId[]): void {
-  if (fan <= 0) return;
-  const winner = s.players[winnerId];
-  if (!winner.alive) return;
-  // 收集每名应上贡玩家交出的“最无用非安全牌”
-  const offers: { from: PlayerId; tile: number }[] = [];
-  for (const tid of tributaries) {
-    if (tid === winnerId) continue;
-    const t = s.players[tid];
-    const safe = new Set(t.safeTiles);
-    const pool = t.hand.filter((x) => !safe.has(x));
-    if (pool.length === 0) continue;
-    let give = pool[0];
-    let low = Infinity;
-    for (const x of pool) {
-      const v = handTileValue(t.hand, x);
-      if (v < low) {
-        low = v;
-        give = x;
-      }
-    }
-    offers.push({ from: tid, tile: give });
-  }
-  if (offers.length === 0) return;
-  // 和牌者从所有上贡牌中挑最有价值的一张
-  let best = offers[0];
-  let bestV = -Infinity;
-  for (const o of offers) {
-    const v = handTileValue(winner.hand, o.tile);
-    if (v > bestV) {
-      bestV = v;
-      best = o;
-    }
-  }
-  // 和牌者交出自己最无用的一张
-  let wgive = winner.hand[0];
-  let wlow = Infinity;
-  for (const x of winner.hand) {
-    const v = handTileValue(winner.hand, x);
-    if (v < wlow) {
-      wlow = v;
-      wgive = x;
-    }
-  }
-  if (bestV <= handTileValue(winner.hand, wgive)) return; // 不值得换则放弃
-  const donor = s.players[best.from];
-  const di = donor.hand.indexOf(best.tile);
-  const wi = winner.hand.indexOf(wgive);
+/** 上贡交换执行：和牌者用 giveTile 换入 takeFrom 玩家提交的上贡牌。 */
+function doTributeExchange(s: GameState, giveTile: number, takeFrom: PlayerId): void {
+  const pt = s.pendingTribute!;
+  const winner = s.players[pt.winner];
+  const offer = pt.offers.find((o) => o.from === takeFrom);
+  if (!offer || offer.tile === null || offer.tile < 0) return;
+  const donor = s.players[takeFrom];
+  const di = donor.hand.indexOf(offer.tile);
+  const wi = winner.hand.indexOf(giveTile);
   if (di < 0 || wi < 0) return;
-  donor.hand[di] = wgive;
-  winner.hand[wi] = best.tile;
+  donor.hand[di] = giveTile;
+  winner.hand[wi] = offer.tile;
   donor.hand.sort((a, b) => a - b);
   winner.hand.sort((a, b) => a - b);
+  // 离开手牌的安全牌失去标记；换入的不继承原安全标记
   donor.safeTiles = donor.safeTiles.filter((x) => donor.hand.includes(x));
-  pushEvent(s, 'tribute', `【上贡】${winner.name} 用 ${tileName(wgive)} 换取 ${donor.name} 的 ${tileName(best.tile)}`, true, {
-    winner: winnerId,
-    donor: best.from,
-  });
+  winner.safeTiles = winner.safeTiles.filter((x) => winner.hand.includes(x));
+  pushEvent(
+    s,
+    'tribute',
+    `【上贡】${winner.name} 用 ${tileName(giveTile)} 换取 ${donor.name} 的 ${tileName(offer.tile)}`,
+    true,
+    { winner: pt.winner, donor: takeFrom }
+  );
+}
+
+/** 上贡流程结束：恢复行动顺序（自摸从和牌者下家；荣和从点炮者下家）。 */
+function finishTribute(s: GameState): void {
+  const pt = s.pendingTribute!;
+  const resumeFrom = pt.isSelfDraw ? pt.winner : pt.discarder ?? pt.winner;
+  s.pendingTribute = null;
+  s.turn = nextAlive(s, resumeFrom);
+  s.phase = 'start';
+}
+
+/** 上贡阶段处理：collect 收集各家上贡牌；exchange 和牌者选交换。 */
+function stepTribute(s: GameState, action: Action): void {
+  const pt = s.pendingTribute;
+  if (!pt) return;
+  if (pt.stage === 'collect') {
+    if (action.type !== 'tributeOffer') return;
+    const idx = pt.offers.findIndex((o) => o.tile === null);
+    if (idx < 0) return;
+    pt.offers[idx].tile = action.tile;
+    return;
+  }
+  if (pt.stage === 'exchange' && action.type === 'tributeExchange') {
+    if (action.giveTile !== undefined && action.takeFrom !== undefined) {
+      doTributeExchange(s, action.giveTile, action.takeFrom);
+    }
+    finishTribute(s);
+  }
 }
 
 function applyWin(s: GameState, snapWinners: WinnerInfo[], isSelfDraw: boolean, tile: number, discarder?: PlayerId): void {
@@ -512,15 +554,31 @@ function applyWin(s: GameState, snapWinners: WinnerInfo[], isSelfDraw: boolean, 
     return { ...e, amount: final };
   });
   engineHooks.redistributeDamage(s, snap);
-  // 上贡目标：荣和=点炮者；自摸=快照中除和牌者外的对手
+  applyDamageSnapshot(s, snap);
+  for (const w of snapWinners) engineHooks.onWin(s, w.player, isSelfDraw);
+
+  // 上贡机制（ver2.0 §3.2.1）：F>0 且有应上贡者时进入 tribute 阶段，等玩家交互
+  if (s.phase === 'gameOver') return;
+  const w0 = snapWinners[0];
+  if (w0.fan <= 0) return;
   const tributaries = isSelfDraw
     ? snap.entries.map((e) => e.target)
     : discarder !== undefined
       ? [discarder]
       : [];
-  applyDamageSnapshot(s, snap);
-  for (const w of snapWinners) resolveTribute(s, w.player, w.fan, tributaries);
-  for (const w of snapWinners) engineHooks.onWin(s, w.player, isSelfDraw);
+  const offers = tributaries
+    .filter((id) => id !== w0.player)
+    .map((id) => ({ from: id, tile: null as number | null }));
+  if (offers.length === 0) return;
+  s.pendingTribute = {
+    winner: w0.player,
+    fan: w0.fan,
+    isSelfDraw,
+    discarder: discarder ?? null,
+    offers,
+    stage: 'collect',
+  };
+  s.phase = 'tribute';
 }
 
 /** 计算和牌的番数与番种明细。 */
@@ -558,7 +616,7 @@ function resolveTsumo(s: GameState): void {
   removeOne(p.hand, tile);
   s.justDrew = false;
   s.drawnTile = null;
-  if (s.phase === 'gameOver') return;
+  if (s.phase === 'gameOver' || s.phase === 'tribute') return;
   s.turn = nextAlive(s, winner);
   s.phase = 'start';
 }
@@ -572,7 +630,7 @@ function resolveRon(s: GameState, winners: PlayerId[]): void {
   });
   s.pending = null;
   applyWin(s, infos, false, tile, discarder);
-  if (s.phase === 'gameOver') return;
+  if (s.phase === 'gameOver' || s.phase === 'tribute') return;
   s.turn = nextAlive(s, discarder);
   s.phase = 'start';
 }
@@ -744,6 +802,9 @@ function step(s: GameState, action: Action): void {
       return;
     case 'discard':
       stepDiscard(s, action);
+      return;
+    case 'tribute':
+      stepTribute(s, action);
       return;
     case 'roundSafety':
       stepRoundSafety(s, action);

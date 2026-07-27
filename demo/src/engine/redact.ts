@@ -15,9 +15,11 @@ import {
   type GameState,
   type HeroId,
   type Meld,
+  type PendingTribute,
   type PlayerId,
   type PlayerState,
   type StatusEffect,
+  type TributeOffer,
 } from './state';
 
 /** 其他玩家的公开信息（不含手牌牌面、AP、备用区身份等私有数据）。 */
@@ -59,6 +61,8 @@ export interface SelfInfo {
   statuses: StatusEffect[];
   eggIndicator: number | null;
   firstDiscardDone: boolean;
+  /** 上贡机制待处理状态（tile 按可见性过滤：和牌者看全部，上贡者看自己，其余背面）。 */
+  pendingTribute: PendingTribute | null;
 }
 
 /** 和牌记录的公开投影：荣和牌面公开，自摸牌面隐藏。 */
@@ -116,6 +120,16 @@ function toPublicPlayer(p: PlayerState): PublicPlayer {
   };
 }
 
+/** 按可见性过滤上贡牌：和牌者看全部 offers.tile；上贡者仅看自己；其余背面（-1）。 */
+function visibleTribute(pt: PendingTribute, viewer: PlayerId): PendingTribute {
+  const isWinner = viewer === pt.winner;
+  const offers: TributeOffer[] = pt.offers.map((o) => ({
+    from: o.from,
+    tile: isWinner || viewer === o.from ? o.tile : o.tile === null ? null : -1,
+  }));
+  return { ...pt, offers };
+}
+
 function toSelfInfo(p: PlayerState): SelfInfo {
   return {
     id: p.id,
@@ -135,6 +149,7 @@ function toSelfInfo(p: PlayerState): SelfInfo {
     statuses: p.statuses,
     eggIndicator: p.eggIndicator,
     firstDiscardDone: p.firstDiscardDone,
+    pendingTribute: null,
   };
 }
 
@@ -181,7 +196,9 @@ export function redactStateFor(
       break;
     }
   }
-  return { self: toSelfInfo(self), publicBoard, legalActions, inspect };
+  const selfInfo = toSelfInfo(self);
+  selfInfo.pendingTribute = state.pendingTribute ? visibleTribute(state.pendingTribute, playerId) : null;
+  return { self: selfInfo, publicBoard, legalActions, inspect };
 }
 
 /** 深拷贝投影视图（供 AI 使用，避免其误改真值引用）。 */

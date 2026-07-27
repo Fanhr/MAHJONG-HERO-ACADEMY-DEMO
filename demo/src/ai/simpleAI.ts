@@ -147,6 +147,55 @@ function chooseAction(view: RedactedView, acts: Action[]): Action {
 export function decide(view: RedactedView): Action {
   const acts = view.legalActions;
   if (acts.length === 0) return { type: 'respondPass' };
+
+  // 上贡阶段：collect 选最无用非安全牌；exchange 选最优交换
+  const pt = view.self.pendingTribute;
+  if (pt) {
+    if (pt.stage === 'collect') {
+      // 当前应提交者选最无用的非安全手牌上贡
+      const offers = acts.filter((a) => a.type === 'tributeOffer') as Extract<Action, { type: 'tributeOffer' }>[];
+      if (offers.length === 0) return acts[0];
+      const counts = counts34(view.self.hand);
+      let worst = offers[0];
+      let worstScore = Infinity;
+      for (const o of offers) {
+        const sc = usefulness(o.tile, counts);
+        if (sc < worstScore) {
+          worstScore = sc;
+          worst = o;
+        }
+      }
+      return worst;
+    }
+    // exchange：和牌者选最优交换（用自己最无用牌换最有价值的上贡牌，值得才换）
+    const valid = pt.offers.filter((o) => o.tile !== null && o.tile >= 0);
+    if (valid.length === 0) return { type: 'tributeExchange' }; // 不交换
+    const counts = counts34(view.self.hand);
+    let bestOffer = valid[0];
+    let bestGain = -Infinity;
+    for (const o of valid) {
+      const v = usefulness(o.tile!, counts) + (counts[o.tile!] ?? 0) * 3;
+      if (v > bestGain) {
+        bestGain = v;
+        bestOffer = o;
+      }
+    }
+    // 自己最无用的牌
+    let give = view.self.hand[0];
+    let giveScore = Infinity;
+    for (const t of view.self.hand) {
+      const sc = usefulness(t, counts);
+      if (sc < giveScore) {
+        giveScore = sc;
+        give = t;
+      }
+    }
+    if (bestGain > giveScore + 1) {
+      return { type: 'tributeExchange', giveTile: give, takeFrom: bestOffer.from };
+    }
+    return { type: 'tributeExchange' }; // 不值得则不换
+  }
+
   const dumb = humanLow(view) && view.self.heroId !== 'geda';
 
   const tsumo = firstOf(acts, 'declareTsumo');

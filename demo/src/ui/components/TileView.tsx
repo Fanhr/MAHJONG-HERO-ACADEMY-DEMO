@@ -11,6 +11,8 @@ export interface TileViewProps {
   /** 是否参与“悬停高亮同名牌”（默认参与；牌背不参与）。 */
   hoverable?: boolean;
   onClick?: () => void;
+  /** 右键菜单事件（用于摸切阶段快速切换安全牌）。 */
+  onContextMenu?: (e: React.MouseEvent) => void;
 }
 
 const SIZES = {
@@ -28,6 +30,7 @@ export default function TileView({
   locked,
   hoverable = true,
   onClick,
+  onContextMenu,
 }: TileViewProps) {
   const isBack = tile === undefined || tile < 0;
   const clickable = !!onClick;
@@ -55,6 +58,7 @@ export default function TileView({
       type="button"
       disabled={!clickable}
       onClick={onClick}
+      onContextMenu={onContextMenu}
       onMouseEnter={enter}
       onMouseLeave={leave}
       className={`${base} overflow-hidden border-black/15 bg-gradient-to-b from-white to-slate-200 p-0 shadow-md

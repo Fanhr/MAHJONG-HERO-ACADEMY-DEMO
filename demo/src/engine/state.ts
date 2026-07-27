@@ -29,6 +29,7 @@ export type Phase =
   | 'drawTile'
   | 'discard'
   | 'awaitMeld' // 弃牌后的鸣牌响应窗口
+  | 'tribute' // 和牌上贡机制（collect 收集上贡牌 / exchange 和牌者选交换）
   | 'roundSafety' // 荒牌后，存活玩家依次确认要保留至下一局的安全牌
   | 'roundOver'
   | 'gameOver';
@@ -206,6 +207,24 @@ export interface GameState {
   firstYaojiDone: boolean; // 咯哒·冲锋鸡：本局是否已结算过“第一张幺鸡”事件
   pendingYaojiDiscarder: PlayerId | null; // 冲锋鸡：本局第一张幺鸡的打出者（等待鸣牌窗口结束后结算）
   winFanContext: number | null; // 当前正在结算的和牌番数（供“平和鸽”等按番数判定的效果读取）
+  /** 和牌上贡机制（ver2.0 §3.2.1）待处理状态；非 null 时处于 tribute 阶段。 */
+  pendingTribute: PendingTribute | null;
+}
+
+/** 单名应上贡玩家提交的上贡牌。tile===null 表示尚未提交；-1 表示该玩家无可用非安全手牌、跳过。 */
+export interface TributeOffer {
+  from: PlayerId;
+  tile: number | null;
+}
+
+/** 上贡机制待处理状态：collect=收集各家上贡牌；exchange=和牌者选择是否交换。 */
+export interface PendingTribute {
+  winner: PlayerId;
+  fan: number;
+  isSelfDraw: boolean;
+  discarder: PlayerId | null; // 荣和时的点炮者；自摸为 null。上贡完成后从其下家恢复行动顺序。
+  offers: TributeOffer[]; // 应上贡者列表（荣和=点炮者1人；自摸=除和牌者外各对手）
+  stage: 'collect' | 'exchange';
 }
 
 // ---------------------------------------------------------------------------
@@ -325,6 +344,7 @@ export function initGame(opts: InitOptions): GameState {
     firstYaojiDone: false,
     pendingYaojiDiscarder: null,
     winFanContext: null,
+    pendingTribute: null,
   };
   // 体验保障：玩家（非 AI）初始手牌保证含 1 张幺鸡，便于展示“鸡”系技能
   const humanSeat = players.findIndex((p) => !p.isAI);

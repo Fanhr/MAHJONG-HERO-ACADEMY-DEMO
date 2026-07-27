@@ -19,6 +19,9 @@ export type Action =
   | { type: 'setSafeTiles'; tiles: number[]; player?: PlayerId } // 摸切阶段指定自己的安全牌
   | { type: 'confirmRoundSafety'; tiles?: number[] } // 荒牌后确认本局要保留至下一局的安全牌
   | { type: 'discard'; tile: number }
+  // 上贡机制（ver2.0 §3.2.1）
+  | { type: 'tributeOffer'; tile: number } // 应上贡者提交 1 张上贡牌
+  | { type: 'tributeExchange'; giveTile?: number; takeFrom?: PlayerId } // 和牌者选交换（均缺省=不交换）
   // 副露响应
   | { type: 'respondRon' }
   | { type: 'respondKan'; tiles: number[] }

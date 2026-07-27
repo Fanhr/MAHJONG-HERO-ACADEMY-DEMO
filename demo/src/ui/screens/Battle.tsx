@@ -7,6 +7,7 @@ import SelfPanel, { type SelfPanelData } from '../components/SelfPanel';
 import TableCenter from '../components/TableCenter';
 import HandBar from '../components/HandBar';
 import ActionBar from '../components/ActionBar';
+import TributePanel from '../components/TributePanel';
 import CardPanel from '../components/CardPanel';
 import CardUsePanel, { type UsePanelResult } from '../components/CardUsePanel';
 import SkillGuide from '../components/SkillGuide';
@@ -27,6 +28,7 @@ const PHASE_CN: Record<string, string> = {
   drawTile: '摸牌',
   discard: '切牌',
   awaitMeld: '鸣牌响应',
+  tribute: '和牌上贡',
   roundSafety: '荒牌',
   roundOver: '本局结束',
   gameOver: '对局结束',
@@ -45,9 +47,23 @@ export default function Battle() {
 
   const [interactive, setInteractive] = useState<Interactive | null>(null);
   const [showGuide, setShowGuide] = useState(false);
-  const [safeMode, setSafeMode] = useState(false);
   const [hovered, setHovered] = useState<number | null>(null);
   const [seenInspectSeq, setSeenInspectSeq] = useState(-1);
+  const [showSafeGuide, setShowSafeGuide] = useState(() => {
+    try {
+      return localStorage.getItem('mha_seen_safe') !== '1';
+    } catch {
+      return true;
+    }
+  });
+  const dismissSafeGuide = () => {
+    setShowSafeGuide(false);
+    try {
+      localStorage.setItem('mha_seen_safe', '1');
+    } catch {
+      /* ignore */
+    }
+  };
 
   if (!state) return null;
 
@@ -105,7 +121,6 @@ export default function Battle() {
   const handChanging = !!interactive || !!state.pendingDraw;
   const canSetSafe =
     decision?.actor === humanId && selfPub.alive && !handChanging && state.phase === 'discard';
-  const effectiveSafeMode = (safeMode && canSetSafe) || isRoundSafety;
 
   // 多多益善保留选择
   const keepActs = isHumanTurn
@@ -230,22 +245,13 @@ export default function Battle() {
             </div>
           )}
 
-          {/* 安全牌控制条（本回合任意阶段可指定；荒牌阶段用上方专用面板） */}
+          {/* 安全牌提示（仅摸切阶段，右键手牌切换） */}
           {canSetSafe && !isRoundSafety && (
             <div className="glass-strong flex items-center justify-between rounded-xl px-3 py-2">
               <span className="text-[11px] text-muted">
-                安全牌：<span className="text-amber-300">{self.safeTiles.length}/4</span> · 被指定的牌免疫置换与干扰类效果（仅摸切阶段可指定）
+                安全牌：<span className="text-amber-300">{self.safeTiles.length}/4</span> ·
+                <span className="text-amber-200"> 右键手牌</span> 切换指定（免疫置换与干扰）
               </span>
-              <button
-                onClick={() => setSafeMode((v) => !v)}
-                className={`rounded-lg px-3 py-1.5 text-xs font-bold transition active:scale-95 ${
-                  effectiveSafeMode
-                    ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-ink-900'
-                    : 'bg-ink-700 text-parchment hover:bg-ink-600'
-                }`}
-              >
-                {effectiveSafeMode ? '完成指定' : '指定安全牌'}
-              </button>
             </div>
           )}
 
@@ -255,16 +261,26 @@ export default function Battle() {
           {/* 手牌 */}
           <HandBar
             hand={self.hand}
-            discardable={effectiveSafeMode ? new Set() : discardable}
+            discardable={discardable}
             drawnTile={drawnTile}
             onDiscard={(t) => humanAction({ type: 'discard', tile: t })}
             safeTiles={self.safeTiles}
-            safeMode={effectiveSafeMode}
+            canSafe={canSetSafe}
             onSetSafe={(tiles) => humanAction({ type: 'setSafeTiles', tiles, player: humanId })}
           />
 
-          {/* 操作栏 */}
-          {isHumanTurn && keepActs.length === 0 && !isRoundSafety ? (
+          {/* 操作栏 / 上贡面板 */}
+          {state.phase === 'tribute' && decision?.actor === humanId && self.pendingTribute ? (
+            <TributePanel
+              pt={self.pendingTribute}
+              selfId={humanId}
+              selfHand={self.hand}
+              selfSafeTiles={self.safeTiles}
+              nameOf={(id) => state.players[id].name}
+              onOffer={(tile) => humanAction({ type: 'tributeOffer', tile })}
+              onExchange={(g, t) => humanAction({ type: 'tributeExchange', giveTile: g, takeFrom: t })}
+            />
+          ) : isHumanTurn && keepActs.length === 0 && !isRoundSafety ? (
             <ActionBar
               decision={decision!}
               onAction={(a) => humanAction(a)}
@@ -309,6 +325,32 @@ export default function Battle() {
           onClose={() => setShowGuide(false)}
           activeHeroes={state.players.map((p) => p.heroId)}
         />
+      )}
+
+      {/* 安全牌首次摸切引导 */}
+      {canSetSafe && showSafeGuide && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="glass-strong w-full max-w-md rounded-2xl p-5">
+            <h3 className="mb-2 text-lg font-black text-gold">安全牌 · 摸切阶段可用</h3>
+            <p className="mb-3 text-sm leading-relaxed text-parchment">
+              在<span className="text-amber-300">摸切阶段</span>，你可以<span className="text-amber-300">右键点击手牌</span>将其指定为安全牌（最多 4 张）。
+              被指定的牌免受一切干扰类技能卡与技能的影响（如置换、偷牌等）。
+            </p>
+            <ul className="mb-3 list-disc pl-5 text-[12px] text-muted">
+              <li>右键已指定的牌可撤销指定</li>
+              <li>左键仍照常打出牌</li>
+              <li>荒牌时全部安全牌标记清除，不跨局保留</li>
+            </ul>
+            <div className="flex justify-end">
+              <button
+                onClick={dismissSafeGuide}
+                className="rounded-lg bg-gradient-to-r from-amber-500 to-orange-600 px-5 py-2 text-sm font-bold text-ink-900 active:scale-95"
+              >
+                知道了
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* 我要验牌：仅对使用者展示对手手牌 */}
