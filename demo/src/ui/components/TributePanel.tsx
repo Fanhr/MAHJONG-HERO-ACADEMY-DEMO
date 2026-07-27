@@ -60,9 +60,13 @@ export default function TributePanel({
         </div>
         <div className="flex flex-wrap gap-1.5">
           {pool.map((t, i) => (
-            <button key={i} onClick={() => { markSeenTribute(); onOffer(t); }} className="active:scale-95">
-              <TileView tile={t} size="lg" onClick={() => { markSeenTribute(); onOffer(t); }} />
-            </button>
+            <TileView
+              key={i}
+              tile={t}
+              size="lg"
+              hoverable={false}
+              onClick={() => { markSeenTribute(); onOffer(t); }}
+            />
           ))}
         </div>
         <p className="mt-2 text-[11px] text-muted">安全牌已锁定，不能上贡。点击一张牌即提交。</p>
@@ -86,16 +90,16 @@ export default function TributePanel({
         <div className="mb-1 text-[11px] text-muted">上贡牌（点选要换入的 1 张）：</div>
         <div className="flex flex-wrap gap-2">
           {validOffers.map((o) => (
-            <button
+            <div
               key={o.from}
               onClick={() => setTakeFrom(o.from)}
-              className={`flex flex-col items-center gap-1 rounded-lg border-2 p-1 transition ${
+              className={`flex cursor-pointer flex-col items-center gap-1 rounded-lg border-2 p-1 transition ${
                 takeFrom === o.from ? 'border-gold bg-gold/10' : 'border-transparent hover:border-amber-400/50'
               }`}
             >
-              <TileView tile={o.tile!} size="md" />
+              <TileView tile={o.tile!} size="md" hoverable={false} selected={takeFrom === o.from} />
               <span className="text-[10px] text-muted">{nameOf(o.from)}</span>
-            </button>
+            </div>
           ))}
           {validOffers.length === 0 && <span className="text-[11px] text-muted">无可用上贡牌</span>}
         </div>
@@ -105,13 +109,14 @@ export default function TributePanel({
         <div className="mb-1 text-[11px] text-muted">你的手牌（点选要交出的 1 张）：</div>
         <div className="flex flex-wrap gap-1.5">
           {selfHand.map((t, i) => (
-            <button
+            <TileView
               key={i}
+              tile={t}
+              size="md"
+              hoverable={false}
+              selected={giveTile === t}
               onClick={() => setGiveTile(t)}
-              className={`rounded transition ${giveTile === t ? 'ring-2 ring-sky-400' : ''}`}
-            >
-              <TileView tile={t} size="md" selected={giveTile === t} />
-            </button>
+            />
           ))}
         </div>
       </div>
