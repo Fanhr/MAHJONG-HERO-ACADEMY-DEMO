@@ -1,0 +1,1431 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>国标麻将计分与手牌模拟器</title>
+<style>
+  :root {
+    --bg: #f8f9fa;
+    --card-bg: #ffffff;
+    --text: #212529;
+    --muted: #6c757d;
+    --accent: #d32f2f;
+    --accent-light: #ffcdd2;
+    --success: #388e3c;
+    --warning: #f9a825;
+    --info: #1976d2;
+    --border: #dee2e6;
+    --shadow: 0 2px 8px rgba(0,0,0,0.06);
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    margin: 0;
+    padding: 20px;
+  }
+  .container { max-width: 1200px; margin: 0 auto; }
+  header {
+    text-align: center;
+    margin-bottom: 24px;
+  }
+  h1 { font-size: 28px; margin: 0 0 8px; color: var(--accent); }
+  .subtitle { color: var(--muted); font-size: 14px; }
+  .tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+    border-bottom: 2px solid var(--border);
+  }
+  .tab {
+    padding: 10px 20px;
+    cursor: pointer;
+    border-bottom: 3px solid transparent;
+    font-weight: 600;
+    color: var(--muted);
+    background: none;
+    border-top: none;
+    border-left: none;
+    border-right: none;
+    font-size: 15px;
+  }
+  .tab.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+  }
+  .panel {
+    background: var(--card-bg);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+  .summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+  .stat {
+    text-align: center;
+    padding: 16px;
+    border-radius: 10px;
+    background: #f1f3f5;
+  }
+  .stat-value {
+    font-size: 30px;
+    font-weight: 700;
+    color: var(--accent);
+  }
+  .stat-label { font-size: 13px; color: var(--muted); margin-top: 4px; }
+  .valid { color: var(--success); }
+  .invalid { color: var(--accent); }
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 16px;
+  }
+  .controls label { font-size: 14px; font-weight: 500; }
+  .controls select, .controls button, .controls input[type="number"] {
+    padding: 8px 14px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    font-size: 14px;
+    background: #fff;
+  }
+  .controls button {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    font-weight: 500;
+    cursor: pointer;
+  }
+  .controls button:hover { background: #b71c1c; }
+  .controls button.secondary {
+    background: #fff;
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .controls button.secondary:hover { background: #f1f3f5; }
+  .score-box {
+    background: #fff8e1;
+    border-left: 4px solid var(--warning);
+    padding: 14px 16px;
+    border-radius: 8px;
+    font-size: 15px;
+  }
+  .score-box strong { color: #5d4037; }
+  .selected-list {
+    margin-top: 12px;
+    padding: 12px;
+    background: #e8f5e9;
+    border-radius: 8px;
+    font-size: 14px;
+  }
+  .selected-list ul { margin: 6px 0 0 18px; padding: 0; }
+  .selected-list li { margin: 3px 0; }
+  .groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+  .group {
+    background: var(--card-bg);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+  .group-header {
+    background: var(--accent-light);
+    color: var(--accent);
+    padding: 12px 16px;
+    font-weight: 700;
+    font-size: 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    user-select: none;
+  }
+  .group-header:hover { background: #ef9a9a; color: #fff; }
+  .group-body {
+    padding: 12px 16px;
+    max-height: 420px;
+    overflow-y: auto;
+  }
+  .group-body.collapsed { display: none; }
+  .pattern {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 8px 0;
+    border-bottom: 1px solid #f1f3f5;
+  }
+  .pattern:last-child { border-bottom: none; }
+  .pattern input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    margin-top: 2px;
+    accent-color: var(--accent);
+    cursor: pointer;
+  }
+  .pattern-info { flex: 1; }
+  .pattern-name { font-weight: 600; font-size: 14px; }
+  .pattern-desc { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .pattern-fan {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 36px;
+    text-align: right;
+  }
+  .note {
+    font-size: 13px;
+    color: var(--muted);
+    margin-top: 16px;
+    padding: 12px;
+    background: #f1f3f5;
+    border-radius: 8px;
+  }
+  .toggle-icon { font-size: 12px; }
+
+  /* 模拟器样式 */
+  .simulator-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+  @media (max-width: 900px) {
+    .simulator-layout { grid-template-columns: 1fr; }
+  }
+  .tile-section h3 {
+    font-size: 16px;
+    margin: 0 0 12px;
+    color: var(--text);
+  }
+  .tile-suit-group {
+    margin-bottom: 16px;
+  }
+  .tile-suit-label {
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  .tile-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .tile-btn {
+    width: 38px;
+    height: 46px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: #fff;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 14px;
+    position: relative;
+    user-select: none;
+    transition: all 0.1s;
+  }
+  .tile-btn:hover { background: #e3f2fd; border-color: var(--info); }
+  .tile-btn.selected {
+    background: var(--accent-light);
+    border-color: var(--accent);
+  }
+  .tile-btn.disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    background: #f1f3f5;
+  }
+  .tile-count {
+    position: absolute;
+    top: 2px;
+    right: 3px;
+    font-size: 10px;
+    color: var(--muted);
+    background: rgba(255,255,255,0.8);
+    border-radius: 50%;
+    width: 14px;
+    height: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .hand-display {
+    min-height: 80px;
+    background: #f1f3f5;
+    border-radius: 10px;
+    padding: 12px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-content: flex-start;
+  }
+  .hand-tile {
+    width: 38px;
+    height: 46px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 14px;
+    position: relative;
+  }
+  .hand-tile:hover { background: #ffebee; }
+  .hand-tile .remove-icon {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    background: var(--accent);
+    color: #fff;
+    border-radius: 50%;
+    width: 14px;
+    height: 14px;
+    font-size: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .condition-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 10px;
+    margin-top: 12px;
+  }
+  .condition {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px;
+  }
+  .condition input[type="checkbox"] { width: 16px; height: 16px; }
+  .analyze-result {
+    margin-top: 16px;
+    padding: 14px;
+    background: #e3f2fd;
+    border-radius: 8px;
+    border-left: 4px solid var(--info);
+  }
+  .analyze-result h4 { margin: 0 0 8px; }
+  .detected-patterns {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+  }
+  .tag {
+    background: var(--accent);
+    color: #fff;
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+  }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+  @media (max-width: 640px) {
+    .summary-grid { grid-template-columns: 1fr 1fr; }
+    .groups { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>国标麻将计分与手牌模拟器</h1>
+    <div class="subtitle">可直接勾选番种计算分数，也可从 144 张牌中选出 14 张成和手牌，自动识别番种</div>
+  </header>
+
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('manual')">番种清单</button>
+    <button class="tab" onclick="switchTab('simulator')">手牌模拟器</button>
+  </div>
+
+  <!-- 公共汇总面板 -->
+  <div class="panel">
+    <div class="summary-grid">
+      <div class="stat">
+        <div class="stat-value" id="totalFan">0</div>
+        <div class="stat-label">总番数</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value" id="validText">-</div>
+        <div class="stat-label">是否可和（8番起和）</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value" id="winScore">0</div>
+        <div class="stat-label">和牌者收入</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value" id="paoScore">0</div>
+        <div class="stat-label">点炮者支出</div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <label for="winType">和牌方式：</label>
+      <select id="winType">
+        <option value="zimo">自摸</option>
+        <option value="dianpao">点炮</option>
+      </select>
+      <button id="resetBtn">清空选择</button>
+    </div>
+
+    <div class="score-box" id="scoreBox">选择牌型后将显示结算说明。</div>
+
+    <div class="selected-list" id="selectedList" style="display:none;">
+      <strong>已选番种：</strong>
+      <ul id="selectedUl"></ul>
+    </div>
+  </div>
+
+  <!-- 番种清单标签页 -->
+  <div id="tab-manual" class="tab-content active">
+    <div class="groups" id="groups"></div>
+  </div>
+
+  <!-- 手牌模拟器标签页 -->
+  <div id="tab-simulator" class="tab-content">
+    <div class="simulator-layout">
+      <div>
+        <div class="panel">
+          <h3>选择手牌（共 14 张）</h3>
+          <div id="tileSelector"></div>
+        </div>
+      </div>
+      <div>
+        <div class="panel">
+          <h3>当前手牌 <span id="handCount" style="font-weight:normal;color:#6c757d;font-size:14px;">0/14</span></h3>
+          <div class="hand-display" id="handDisplay"></div>
+          <div class="controls" style="margin-top:12px;">
+            <button class="secondary" onclick="clearHand()">清空手牌</button>
+            <button onclick="analyzeHand()">分析手牌</button>
+          </div>
+        </div>
+        <div class="panel">
+          <h3>模拟条件</h3>
+          <div class="condition-grid">
+            <label class="condition"><input type="checkbox" id="optMenqian" checked> 门前清</label>
+            <label class="condition"><input type="checkbox" id="optZimo"> 自摸</label>
+            <label class="condition">圈风：<select id="optQuanfeng"><option value="1">东</option><option value="2">南</option><option value="3">西</option><option value="4">北</option></select></label>
+            <label class="condition">门风：<select id="optMenfeng"><option value="1">东</option><option value="2">南</option><option value="3">西</option><option value="4">北</option></select></label>
+            <label class="condition">暗杠数：<input type="number" id="optAnGang" min="0" max="4" value="0" style="width:50px;"></label>
+            <label class="condition">明杠数：<input type="number" id="optMingGang" min="0" max="4" value="0" style="width:50px;"></label>
+            <label class="condition">花牌数：<input type="number" id="optHua" min="0" max="8" value="0" style="width:50px;"></label>
+            <label class="condition"><input type="checkbox" id="optLastTile"> 和牌张为牌墙最后一张</label>
+            <label class="condition"><input type="checkbox" id="optGangShang"> 杠上开花</label>
+            <label class="condition"><input type="checkbox" id="optQiangGang"> 抢杠和</label>
+            <label class="condition"><input type="checkbox" id="optJueZhang"> 和绝张</label>
+          </div>
+          <div class="note" style="margin-top:12px;">
+            提示：圈风/门风影响“圈风刻”“门风刻”的判断；暗杠/明杠数量影响杠相关番种；和牌张为最后一张时满足“妙手回春”或“海底捞月”。
+          </div>
+        </div>
+        <div class="panel" id="analyzePanel" style="display:none;">
+          <h3>分析结果</h3>
+          <div id="analyzeResult"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note">
+    <strong>说明：</strong><br>
+    1. 本工具用于快速估算国标麻将番数与基础结算。手牌模拟器会自动识别常见牌型，但特殊牌型（如全不靠、七星不靠、组合龙等）以及复杂的“不拆移”“就高不就低”规则仍需结合实际牌型人工核对。<br>
+    2. 花牌每张计 1 番，但<strong>不计入起和番数</strong>（起和必须至少 8 番非花牌番种）。<br>
+    3. 结算采用竞技规则通用标准：自摸时其余三家各付 (8+总番数)；点炮时点炮者付 (8+总番数)，另两家各付 8 分。<br>
+    4. 点击每组标题可展开/收起番种列表。
+  </div>
+</div>
+
+<script>
+// ========== 数据：144 张牌 ==========
+const SUITS = [
+  { key: 'm', name: '万', nums: [1,2,3,4,5,6,7,8,9] },
+  { key: 'p', name: '筒', nums: [1,2,3,4,5,6,7,8,9] },
+  { key: 's', name: '条', nums: [1,2,3,4,5,6,7,8,9] },
+];
+const HONORS = [
+  { key: 'z1', name: '东' }, { key: 'z2', name: '南' }, { key: 'z3', name: '西' }, { key: 'z4', name: '北' },
+  { key: 'z5', name: '中' }, { key: 'z6', name: '发' }, { key: 'z7', name: '白' }
+];
+const FLOWERS = [
+  { key: 'f1', name: '春' }, { key: 'f2', name: '夏' }, { key: 'f3', name: '秋' }, { key: 'f4', name: '冬' },
+  { key: 'f5', name: '梅' }, { key: 'f6', name: '兰' }, { key: 'f7', name: '竹' }, { key: 'f8', name: '菊' }
+];
+
+const ALL_TILES = [];
+SUITS.forEach(s => s.nums.forEach(n => ALL_TILES.push({ id: s.key + n, suit: s.key, rank: n, name: n + s.name, type: 'num' })));
+HONORS.forEach(h => ALL_TILES.push({ id: h.key, suit: 'z', rank: parseInt(h.key[1]), name: h.name, type: 'honor' }));
+FLOWERS.forEach(f => ALL_TILES.push({ id: f.key, suit: 'f', rank: parseInt(f.key[1]), name: f.name, type: 'flower' }));
+
+const TILE_MAP = {};
+ALL_TILES.forEach(t => TILE_MAP[t.id] = t);
+
+function tileKey(t) { return t.id; }
+function tileName(t) { return t.name; }
+function isTerminal(t) { return t.type === 'num' && (t.rank === 1 || t.rank === 9); }
+function isHonor(t) { return t.type === 'honor'; }
+function isTerminalOrHonor(t) { return isTerminal(t) || isHonor(t); }
+function isNumber(t) { return t.type === 'num'; }
+function isEven(t) { return t.type === 'num' && t.rank % 2 === 0; }
+function isFlower(t) { return t.type === 'flower'; }
+function isGreen(t) { return (t.suit === 's' && [2,3,4,6,8].includes(t.rank)) || (t.id === 'z6'); }
+function isPushDown(t) {
+  if (t.suit === 'p') return [1,2,3,4,5,8,9].includes(t.rank);
+  if (t.suit === 's') return [2,4,5,6,8,9].includes(t.rank);
+  if (t.id === 'z7') return true;
+  return false;
+}
+
+// ========== 数据：81 番种 ==========
+const patterns = [
+  { fan: 88, name: "大四喜", desc: "东、南、西、北四副刻子（杠）", excludes: ["圈风刻","门风刻","三风刻","碰碰和","幺九刻"] },
+  { fan: 88, name: "大三元", desc: "中、发、白三副刻子（杠）", excludes: ["箭刻","双箭刻"] },
+  { fan: 88, name: "绿一色", desc: "由2、3、4、6、8条及“发”组成", excludes: ["混一色","清一色","断幺","无字","缺一门"] },
+  { fan: 88, name: "九莲宝灯", desc: "同花色1112345678999，见本花色任意一张成和", excludes: ["清一色","门前清","幺九刻","不求人"] },
+  { fan: 88, name: "四杠", desc: "和牌中有四副杠", excludes: ["单钓将"] },
+  { fan: 88, name: "连七对", desc: "同花色连续7个对子", excludes: ["七对","清一色","门前清","单钓将","不求人"] },
+  { fan: 88, name: "十三幺", desc: "13种幺九牌各1张，加其中1张作将", excludes: ["五门齐","门前清","单钓将","不求人"] },
+  { fan: 64, name: "清幺九", desc: "由1、9数牌刻子（杠）和将牌组成，无字牌", excludes: ["碰碰和","全带幺","幺九刻","无字"] },
+  { fan: 64, name: "小四喜", desc: "三副风牌刻子（杠）加另一风牌作将", excludes: ["三风刻","幺九刻"] },
+  { fan: 64, name: "小三元", desc: "两副箭牌刻子（杠）加另一箭牌作将", excludes: ["双箭刻","箭刻"] },
+  { fan: 64, name: "字一色", desc: "全部由字牌刻子（杠）和将牌组成", excludes: ["碰碰和","全带幺","幺九刻"] },
+  { fan: 64, name: "四暗刻", desc: "四副暗刻（暗杠）组成的和牌", excludes: ["门前清","碰碰和","三暗刻","双暗刻","不求人"] },
+  { fan: 64, name: "一色双龙会", desc: "同花色两组123和789，5作将", excludes: ["七对","清一色","平和","无字","一般高","老少副"] },
+  { fan: 48, name: "一色四同顺", desc: "同花色四副完全相同的顺子", excludes: ["一色三节高","四归一","一般高"] },
+  { fan: 48, name: "一色四节高", desc: "同花色四副依次递增一个序数的刻子（杠）", excludes: ["一色三同顺","碰碰和"] },
+  { fan: 32, name: "一色四步高", desc: "同花色四副依次递增一个或两个序数的顺子", excludes: ["连六","老少副"] },
+  { fan: 32, name: "三杠", desc: "和牌中有三副杠", excludes: [] },
+  { fan: 32, name: "混幺九", desc: "由字牌和1、9数牌刻子（杠）、将牌组成", excludes: ["碰碰和","全带幺","幺九刻"] },
+  { fan: 24, name: "七对", desc: "由七个对子组成的特殊和牌牌型", excludes: ["门前清","单钓将","不求人","碰碰和","平和"] },
+  { fan: 24, name: "七星不靠", desc: "7种字牌各1张 + 三种花色按147/258/369取7张不重复数牌", excludes: ["五门齐","门前清","不求人"] },
+  { fan: 24, name: "全双刻", desc: "由2、4、6、8数牌刻子（杠）和将牌组成", excludes: ["碰碰和","断幺"] },
+  { fan: 24, name: "清一色", desc: "由一种花色数牌组成的和牌", excludes: ["无字","混一色","缺一门"] },
+  { fan: 24, name: "一色三同顺", desc: "同花色三副序数相同的顺子", excludes: ["一色三节高","一般高"] },
+  { fan: 24, name: "一色三节高", desc: "同花色三副依次递增一个序数的刻子（杠）", excludes: ["一色三同顺"] },
+  { fan: 24, name: "全大", desc: "全部由7、8、9数牌组成", excludes: ["无字"] },
+  { fan: 24, name: "全中", desc: "全部由4、5、6数牌组成", excludes: ["断幺"] },
+  { fan: 24, name: "全小", desc: "全部由1、2、3数牌组成", excludes: ["无字"] },
+  { fan: 16, name: "清龙", desc: "同花色123 + 456 + 789三组顺子", excludes: [] },
+  { fan: 16, name: "三色双龙会", desc: "两种花色各一组123和789，第三种花色5作将", excludes: ["平和","无字","喜相逢","老少副"] },
+  { fan: 16, name: "一色三步高", desc: "同花色三副依次递增一个或两个序数的顺子", excludes: [] },
+  { fan: 16, name: "全带五", desc: "每组面子及将牌都包含5的数牌", excludes: ["断幺"] },
+  { fan: 16, name: "三同刻", desc: "三种花色各一副相同序数的刻子（杠）", excludes: [] },
+  { fan: 16, name: "三暗刻", desc: "和牌中有三副暗刻（暗杠）", excludes: ["双暗刻"] },
+  { fan: 12, name: "全不靠", desc: "三种花色147/258/369不错位 + 字牌任意14张单张", excludes: ["五门齐","门前清","不求人"] },
+  { fan: 12, name: "组合龙", desc: "三种花色147/258/369不错位，另加1面子+1将", excludes: [] },
+  { fan: 12, name: "大于五", desc: "全部由6、7、8、9数牌组成", excludes: ["无字"] },
+  { fan: 12, name: "小于五", desc: "全部由1、2、3、4数牌组成", excludes: ["无字"] },
+  { fan: 12, name: "三风刻", desc: "三副风牌刻子（杠）", excludes: ["幺九刻"] },
+  { fan: 8, name: "花龙", desc: "三种花色的顺子连接成123/456/789", excludes: [] },
+  { fan: 8, name: "推不倒", desc: "由牌面上下对称的牌组成", excludes: ["缺一门"] },
+  { fan: 8, name: "三色三同顺", desc: "三种花色各一副相同序数的顺子", excludes: [] },
+  { fan: 8, name: "三色三节高", desc: "三种花色三副依次递增一个序数的刻子（杠）", excludes: [] },
+  { fan: 8, name: "无番和", desc: "和牌后除花牌外计不出任何番种", excludes: [] },
+  { fan: 8, name: "妙手回春", desc: "自摸牌墙最后一张牌成和", excludes: ["自摸"] },
+  { fan: 8, name: "海底捞月", desc: "和牌墙摸完后打出的最后一张牌", excludes: [] },
+  { fan: 8, name: "杠上开花", desc: "杠牌后补抓牌成和", excludes: ["自摸"] },
+  { fan: 8, name: "抢杠和", desc: "和他人自抓开明杠的牌成和", excludes: ["和绝张"] },
+  { fan: 8, name: "双暗杠", desc: "和牌中有两副暗杠", excludes: [] },
+  { fan: 6, name: "碰碰和", desc: "四副刻子（杠）加一对将牌", excludes: ["平和"] },
+  { fan: 6, name: "混一色", desc: "由一种花色数牌和字牌组成", excludes: ["缺一门"] },
+  { fan: 6, name: "三色三步高", desc: "三种花色三副依次递增一个序数的顺子", excludes: [] },
+  { fan: 6, name: "五门齐", desc: "万、筒、条、风、箭五门都有", excludes: [] },
+  { fan: 6, name: "全求人", desc: "四副全部副露，以单钓将点和", excludes: ["单钓将","门前清"] },
+  { fan: 6, name: "双箭刻", desc: "两副箭牌刻子（杠）", excludes: ["箭刻","幺九刻"] },
+  { fan: 4, name: "全带幺", desc: "每组面子及将牌都包含幺九牌（1/9/字牌）", excludes: [] },
+  { fan: 4, name: "不求人", desc: "门前清状态下自摸和牌", excludes: ["自摸","门前清"] },
+  { fan: 4, name: "双明杠", desc: "和牌中有两副明杠", excludes: [] },
+  { fan: 4, name: "和绝张", desc: "和牌张是该种牌已亮明3张后的最后一张", excludes: ["抢杠和"] },
+  { fan: 2, name: "箭刻", desc: "中、发、白任一刻子（杠）", excludes: ["幺九刻"] },
+  { fan: 2, name: "圈风刻", desc: "与当前圈风相同的风刻（杠）", excludes: ["幺九刻"] },
+  { fan: 2, name: "门风刻", desc: "与自家门风相同的风刻（杠）", excludes: ["幺九刻"] },
+  { fan: 2, name: "门前清", desc: "未吃、碰、明杠，和他人打出的牌成和", excludes: ["不求人"] },
+  { fan: 2, name: "平和", desc: "四副顺子加数牌将牌组成的和牌", excludes: ["碰碰和","无字"] },
+  { fan: 2, name: "四归一", desc: "手牌中有4张相同的牌但未杠", excludes: [] },
+  { fan: 2, name: "双同刻", desc: "两种花色各一副相同序数的刻子（杠）", excludes: [] },
+  { fan: 2, name: "双暗刻", desc: "两副暗刻（暗杠）", excludes: ["三暗刻"] },
+  { fan: 2, name: "暗杠", desc: "一副暗杠", excludes: [] },
+  { fan: 2, name: "断幺", desc: "手牌中没有1、9及字牌", excludes: [] },
+  { fan: 1, name: "一般高", desc: "同花色两副序数相同的顺子", excludes: [] },
+  { fan: 1, name: "喜相逢", desc: "两种花色各一副序数相同的顺子", excludes: [] },
+  { fan: 1, name: "连六", desc: "同花色6张连续牌组成的两副相邻顺子", excludes: [] },
+  { fan: 1, name: "老少副", desc: "同花色123 + 789两副顺子", excludes: [] },
+  { fan: 1, name: "幺九刻", desc: "1、9数牌或字牌组成的刻子（杠）", excludes: [] },
+  { fan: 1, name: "明杠", desc: "一副明杠", excludes: [] },
+  { fan: 1, name: "缺一门", desc: "和牌中缺少一种花色数牌", excludes: [] },
+  { fan: 1, name: "无字", desc: "和牌中没有字牌", excludes: [] },
+  { fan: 1, name: "边张", desc: "以边张（123听3或789听7）方式和牌", excludes: [] },
+  { fan: 1, name: "坎张", desc: "以嵌张（如13听2、46听5）方式和牌", excludes: [] },
+  { fan: 1, name: "单钓将", desc: "单钓一张牌作将成和", excludes: [] },
+  { fan: 1, name: "自摸", desc: "自己从牌墙摸牌成和", excludes: [] },
+  { fan: 1, name: "花牌", desc: "每张花牌计1番（不计入起和番）", excludes: [] }
+];
+
+const groups = patterns.reduce((acc, p) => {
+  if (!acc[p.fan]) acc[p.fan] = [];
+  acc[p.fan].push(p);
+  return acc;
+}, {});
+const fanOrder = [88, 64, 48, 32, 24, 16, 12, 8, 6, 4, 2, 1];
+
+const state = new Set();
+let selectedHand = [];
+
+// ========== UI：番种清单 ==========
+function renderGroups() {
+  const container = document.getElementById('groups');
+  container.innerHTML = fanOrder.map(fan => {
+    const list = groups[fan];
+    return `
+      <div class="group" data-fan="${fan}">
+        <div class="group-header" onclick="toggleGroup(this)">
+          <span>${fan} 番（${list.length}种）</span>
+          <span class="toggle-icon">▼</span>
+        </div>
+        <div class="group-body">
+          ${list.map(p => `
+            <div class="pattern">
+              <input type="checkbox" id="cb_${p.name}" value="${p.name}" data-fan="${p.fan}" onchange="togglePattern(this)">
+              <div class="pattern-info">
+                <label for="cb_${p.name}" class="pattern-name">${p.name}</label>
+                <div class="pattern-desc">${p.desc}</div>
+              </div>
+              <div class="pattern-fan">${p.fan}</div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function toggleGroup(header) {
+  const body = header.nextElementSibling;
+  const icon = header.querySelector('.toggle-icon');
+  body.classList.toggle('collapsed');
+  icon.textContent = body.classList.contains('collapsed') ? '▶' : '▼';
+}
+
+function findPattern(name) {
+  return patterns.find(p => p.name === name);
+}
+
+function togglePattern(checkbox) {
+  const name = checkbox.value;
+  const pattern = findPattern(name);
+  if (checkbox.checked) {
+    state.add(name);
+    pattern.excludes.forEach(ex => {
+      if (state.has(ex)) {
+        state.delete(ex);
+        const cb = document.getElementById('cb_' + ex);
+        if (cb) cb.checked = false;
+      }
+    });
+  } else {
+    state.delete(name);
+  }
+  updateSummary();
+}
+
+function setPatternChecked(name, checked) {
+  const cb = document.getElementById('cb_' + name);
+  if (cb) {
+    cb.checked = checked;
+    if (checked) state.add(name);
+    else state.delete(name);
+  }
+}
+
+function updateSummary() {
+  const selected = Array.from(state).map(findPattern).filter(Boolean);
+  const total = selected.reduce((sum, p) => sum + p.fan, 0);
+  const isValid = total >= 8;
+  const winType = document.getElementById('winType').value;
+  const base = 8 + total;
+  let winScore = 0, paoScore = 0;
+  let text = '';
+  if (winType === 'zimo') {
+    winScore = base * 3;
+    paoScore = base;
+    text = `自摸和牌：其余三家各付 <strong>${base} 分</strong>，和牌者共收入 <strong>${winScore} 分</strong>。`;
+  } else {
+    winScore = base + 8 * 2;
+    paoScore = base;
+    text = `点炮和牌：点炮者付 <strong>${base} 分</strong>，另两家各付 <strong>8 分</strong>，和牌者共收入 <strong>${winScore} 分</strong>。`;
+  }
+
+  document.getElementById('totalFan').textContent = total;
+  const validEl = document.getElementById('validText');
+  validEl.textContent = isValid ? '可和' : '不可和';
+  validEl.className = isValid ? 'stat-value valid' : 'stat-value invalid';
+  document.getElementById('winScore').textContent = winScore;
+  document.getElementById('paoScore').textContent = paoScore;
+  document.getElementById('scoreBox').innerHTML = text + (isValid ? '' : ` <span style="color:#d32f2f">当前不足 8 番，无法和牌。</span>`);
+
+  const listEl = document.getElementById('selectedList');
+  const ul = document.getElementById('selectedUl');
+  if (selected.length > 0) {
+    listEl.style.display = 'block';
+    ul.innerHTML = selected.map(p => `<li>${p.name}（${p.fan}番）</li>`).join('');
+  } else {
+    listEl.style.display = 'none';
+  }
+}
+
+function resetAll() {
+  state.clear();
+  document.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+  selectedHand = [];
+  renderHand();
+  updateSummary();
+  document.getElementById('analyzePanel').style.display = 'none';
+}
+
+// ========== UI：标签页切换 ==========
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelector(`.tab[onclick="switchTab('${tab}')"]`).classList.add('active');
+  document.getElementById('tab-' + tab).classList.add('active');
+}
+
+// ========== UI：牌选择器 ==========
+function renderTileSelector() {
+  const container = document.getElementById('tileSelector');
+  let html = '';
+  SUITS.forEach(suit => {
+    html += `<div class="tile-suit-group"><div class="tile-suit-label">${suit.name}</div><div class="tile-grid">`;
+    suit.nums.forEach(n => {
+      const id = suit.key + n;
+      html += `<div class="tile-btn" id="tile_${id}" onclick="toggleTile('${id}')">
+        <div class="tile-count" id="count_${id}">0</div>
+        <div>${n}</div>
+      </div>`;
+    });
+    html += '</div></div>';
+  });
+  html += `<div class="tile-suit-group"><div class="tile-suit-label">字牌</div><div class="tile-grid">`;
+  HONORS.forEach(h => {
+    html += `<div class="tile-btn" id="tile_${h.key}" onclick="toggleTile('${h.key}')">
+      <div class="tile-count" id="count_${h.key}">0</div>
+      <div>${h.name}</div>
+    </div>`;
+  });
+  html += '</div></div>';
+  html += `<div class="tile-suit-group"><div class="tile-suit-label">花牌</div><div class="tile-grid">`;
+  FLOWERS.forEach(f => {
+    html += `<div class="tile-btn" id="tile_${f.key}" onclick="toggleTile('${f.key}')">
+      <div class="tile-count" id="count_${f.key}">0</div>
+      <div>${f.name}</div>
+    </div>`;
+  });
+  html += '</div></div>';
+  container.innerHTML = html;
+}
+
+function toggleTile(id) {
+  const tile = TILE_MAP[id];
+  const count = selectedHand.filter(t => t.id === id).length;
+  if (count < 4 && selectedHand.length < 14) {
+    selectedHand.push(tile);
+  } else if (count >= 4 || selectedHand.length >= 14) {
+    // 已达上限，点击则移除一张
+    const idx = selectedHand.findIndex(t => t.id === id);
+    if (idx >= 0) selectedHand.splice(idx, 1);
+  }
+  renderHand();
+}
+
+function removeTile(index) {
+  selectedHand.splice(index, 1);
+  renderHand();
+}
+
+function clearHand() {
+  selectedHand = [];
+  renderHand();
+}
+
+function renderHand() {
+  const display = document.getElementById('handDisplay');
+  display.innerHTML = selectedHand.map((t, i) => `
+    <div class="hand-tile" onclick="removeTile(${i})">
+      <div class="remove-icon">×</div>
+      <div>${t.name}</div>
+    </div>
+  `).join('');
+  document.getElementById('handCount').textContent = `${selectedHand.length}/14`;
+  // 更新按钮状态
+  ALL_TILES.forEach(t => {
+    const btn = document.getElementById('tile_' + t.id);
+    const cnt = selectedHand.filter(x => x.id === t.id).length;
+    document.getElementById('count_' + t.id).textContent = cnt;
+    btn.classList.toggle('selected', cnt > 0);
+    btn.classList.toggle('disabled', selectedHand.length >= 14 && cnt === 0);
+  });
+}
+
+// ========== 手牌分析核心 ==========
+function countTiles(tiles) {
+  const c = {};
+  tiles.forEach(t => { c[t.id] = (c[t.id] || 0) + 1; });
+  return c;
+}
+
+function copyCount(c) { return {...c}; }
+
+function removeTileFromCount(c, id, n) {
+  const r = copyCount(c);
+  r[id] = (r[id] || 0) - n;
+  if (r[id] <= 0) delete r[id];
+  return r;
+}
+
+function countToArray(c) {
+  const arr = [];
+  Object.keys(c).forEach(id => { for (let i=0; i<c[id]; i++) arr.push(TILE_MAP[id]); });
+  return arr;
+}
+
+function getAllPairs(tiles) {
+  const c = countTiles(tiles);
+  const pairs = [];
+  Object.keys(c).forEach(id => { if (c[id] >= 2) pairs.push(TILE_MAP[id]); });
+  return pairs;
+}
+
+function getSequences(tiles) {
+  const c = countTiles(tiles);
+  const seqs = [];
+  SUITS.forEach(suit => {
+    for (let i=1; i<=7; i++) {
+      const a = suit.key + i, b = suit.key + (i+1), c3 = suit.key + (i+2);
+      while (c[a] > 0 && c[b] > 0 && c[c3] > 0) {
+        seqs.push([TILE_MAP[a], TILE_MAP[b], TILE_MAP[c3]]);
+        c[a]--; c[b]--; c[c3]--;
+      }
+    }
+  });
+  return seqs;
+}
+
+function getTriplets(tiles) {
+  const c = countTiles(tiles);
+  const trips = [];
+  Object.keys(c).forEach(id => {
+    if (c[id] >= 3) {
+      for (let i=0; i<Math.floor(c[id]/3); i++) trips.push([TILE_MAP[id], TILE_MAP[id], TILE_MAP[id]]);
+    }
+  });
+  return trips;
+}
+
+function findAllStandardDecompositions(tiles) {
+  const results = [];
+  const pairs = getAllPairs(tiles);
+  pairs.forEach(pairTile => {
+    const afterPair = removeTileFromCount(countTiles(tiles), pairTile.id, 2);
+    const melds = findMelds(afterPair, 4, []);
+    melds.forEach(meldSet => {
+      results.push({ pair: pairTile, melds: meldSet });
+    });
+  });
+  return results;
+}
+
+function findMelds(count, needed, current) {
+  if (needed === 0) return [current];
+  const ids = Object.keys(count);
+  if (ids.length === 0) return [];
+  // 找到数量最多的牌作为起点
+  const firstId = ids.sort((a,b) => count[b] - count[a])[0];
+  if (!count[firstId]) return [];
+  const first = TILE_MAP[firstId];
+  const results = [];
+
+  // 尝试刻子
+  if (count[firstId] >= 3) {
+    const newCount = removeTileFromCount(count, firstId, 3);
+    const triplet = [first, first, first];
+    const sub = findMelds(newCount, needed - 1, [...current, {type:'triplet', tiles:triplet, suit:first.suit, rank:first.rank, id:first.id}]);
+    sub.forEach(r => results.push(r));
+  }
+
+  // 尝试顺子（仅限数牌）
+  if (first.type === 'num') {
+    const a = firstId, b = first.suit + (first.rank+1), c3 = first.suit + (first.rank+2);
+    if (count[b] > 0 && count[c3] > 0) {
+      let newCount = removeTileFromCount(count, a, 1);
+      newCount = removeTileFromCount(newCount, b, 1);
+      newCount = removeTileFromCount(newCount, c3, 1);
+      const seq = [first, TILE_MAP[b], TILE_MAP[c3]];
+      const sub = findMelds(newCount, needed - 1, [...current, {type:'sequence', tiles:seq, suit:first.suit, start:first.rank}]);
+      sub.forEach(r => results.push(r));
+    }
+  }
+
+  return results;
+}
+
+function isSevenPairs(tiles) {
+  const c = countTiles(tiles);
+  return Object.keys(c).length === 7 && Object.values(c).every(v => v === 2);
+}
+
+function isThirteenOrphans(tiles) {
+  // 13种幺九牌各1张 + 其中1张作将
+  const required = ['m1','m9','p1','p9','s1','s9','z1','z2','z3','z4','z5','z6','z7'];
+  const c = countTiles(tiles);
+  if (Object.keys(c).length !== 13) return false;
+  const hasAll = required.every(id => c[id] >= 1);
+  if (!hasAll) return false;
+  const pairCount = Object.values(c).filter(v => v === 2).length;
+  return pairCount === 1;
+}
+
+function isAllNotAligned(tiles) {
+  // 七星不靠：7种字牌 + 三种花色147/258/369各取，共14张单张
+  const c = countTiles(tiles);
+  const honors = ['z1','z2','z3','z4','z5','z6','z7'];
+  const allHonors = honors.every(id => c[id] === 1);
+  if (!allHonors) return false;
+  const suitGroups = { m: {1:true,4:true,7:true}, p: {2:true,5:true,8:true}, s: {3:true,6:true,9:true} };
+  let numCount = 0;
+  for (const suit of ['m','p','s']) {
+    for (const rank of [1,2,3,4,5,6,7,8,9]) {
+      const id = suit + rank;
+      if (c[id] && !suitGroups[suit][rank]) return false;
+      if (c[id]) numCount += c[id];
+    }
+  }
+  return numCount === 7 && Object.values(c).every(v => v === 1);
+}
+
+function isCombinationDragon(tiles) {
+  // 组合龙：三种花色147/258/369不错位，另加1面子+1将
+  const c = countTiles(tiles);
+  const dragonTiles = {
+    m: ['m1','m4','m7'], p: ['p2','p5','p8'], s: ['s3','s6','s9']
+  };
+  // 检查是否包含完整组合龙
+  const hasDragon = Object.keys(dragonTiles).every(suit => dragonTiles[suit].every(id => c[id] === 1));
+  if (!hasDragon) return false;
+  // 移除9张组合龙后，剩余5张应组成1面子+1将
+  let remaining = copyCount(c);
+  Object.values(dragonTiles).flat().forEach(id => {
+    remaining = removeTileFromCount(remaining, id, 1);
+  });
+  const remTiles = countToArray(remaining);
+  if (remTiles.length !== 5) return false;
+  // 检查5张是否能组成1面子+1将
+  const pairs = getAllPairs(remTiles);
+  for (const p of pairs) {
+    const afterPair = removeTileFromCount(remaining, p.id, 2);
+    const rem = countToArray(afterPair);
+    if (rem.length !== 3) continue;
+    // 检查是否是顺子或刻子
+    if (rem[0].id === rem[1].id && rem[1].id === rem[2].id) return true;
+    if (rem[0].suit === rem[1].suit && rem[1].suit === rem[2].suit && rem[0].rank + 2 === rem[2].rank) return true;
+  }
+  return false;
+}
+
+function isLianQiDui(tiles) {
+  // 连七对：同花色连续7个对子
+  if (!isSevenPairs(tiles)) return false;
+  const c = countTiles(tiles);
+  const ids = Object.keys(c);
+  if (ids.some(id => TILE_MAP[id].type !== 'num')) return false;
+  const suit = TILE_MAP[ids[0]].suit;
+  if (ids.some(id => TILE_MAP[id].suit !== suit)) return false;
+  const ranks = ids.map(id => TILE_MAP[id].rank).sort((a,b) => a-b);
+  return ranks[0] + 6 === ranks[6];
+}
+
+function isYiSeShuangLong(tiles) {
+  // 一色双龙会：同花色两组123和789，5作将
+  const c = countTiles(tiles);
+  if (Object.keys(c).length !== 5) return false;
+  const suits = new Set(Object.keys(c).map(id => TILE_MAP[id].suit));
+  if (suits.size !== 1) return false;
+  const suit = [...suits][0];
+  const required = {
+    [suit+'1']: 2, [suit+'2']: 2, [suit+'3']: 2,
+    [suit+'7']: 2, [suit+'8']: 2, [suit+'9']: 2,
+    [suit+'5']: 2
+  };
+  return Object.keys(required).every(id => c[id] === required[id]);
+}
+
+function isJiuLianBaoDeng(tiles) {
+  // 九莲宝灯：同花色 1112345678999 + 本花色任意一张
+  const c = countTiles(tiles);
+  const suits = ['m','p','s'];
+  for (const suit of suits) {
+    const base = {
+      [suit+'1']: 3, [suit+'2']: 1, [suit+'3']: 1, [suit+'4']: 1, [suit+'5']: 1,
+      [suit+'6']: 1, [suit+'7']: 1, [suit+'8']: 1, [suit+'9']: 3
+    };
+    let ok = true;
+    for (const id in base) {
+      if ((c[id] || 0) < base[id]) { ok = false; break; }
+    }
+    if (ok) {
+      // 检查总数为14且全部为同一花色
+      const suitTiles = tiles.filter(t => t.suit === suit);
+      if (suitTiles.length === 14) return true;
+    }
+  }
+  return false;
+}
+
+function isQingYaoJiu(tiles) {
+  const c = countTiles(tiles);
+  return Object.keys(c).every(id => {
+    const t = TILE_MAP[id];
+    return t.type === 'num' && (t.rank === 1 || t.rank === 9);
+  });
+}
+
+function isZiYiSe(tiles) {
+  return tiles.every(t => t.type === 'honor');
+}
+
+function isLvYiSe(tiles) {
+  return tiles.every(t => isGreen(t));
+}
+
+function isHunYaoJiu(tiles) {
+  return tiles.every(t => isTerminalOrHonor(t));
+}
+
+function isQuanShuangKe(tiles) {
+  return tiles.every(t => isEven(t));
+}
+
+function isQuanDa(tiles) { return tiles.every(t => t.type === 'num' && t.rank >= 7); }
+function isQuanZhong(tiles) { return tiles.every(t => t.type === 'num' && t.rank >= 4 && t.rank <= 6); }
+function isQuanXiao(tiles) { return tiles.every(t => t.type === 'num' && t.rank <= 3); }
+function isDaYuWu(tiles) { return tiles.every(t => t.type === 'num' && t.rank >= 6); }
+function isXiaoYuWu(tiles) { return tiles.every(t => t.type === 'num' && t.rank <= 4); }
+function isWuZi(tiles) { return tiles.every(t => t.type !== 'honor'); }
+function isDuanYao(tiles) { return tiles.every(t => t.type === 'num' && t.rank >= 2 && t.rank <= 8); }
+function isTuiBuDao(tiles) { return tiles.every(t => isPushDown(t)); }
+function isQingYiSe(tiles) {
+  const suits = new Set(tiles.filter(t => t.type === 'num').map(t => t.suit));
+  return suits.size === 1 && tiles.every(t => t.type === 'num' || t.type === 'flower');
+}
+function isHunYiSe(tiles) {
+  const numSuits = new Set(tiles.filter(t => t.type === 'num').map(t => t.suit));
+  const hasHonor = tiles.some(t => t.type === 'honor');
+  return numSuits.size === 1 && hasHonor;
+}
+function isQueYiMen(tiles) {
+  const suits = new Set(tiles.filter(t => t.type === 'num').map(t => t.suit));
+  return suits.size === 2;
+}
+function isWuMenQi(tiles) {
+  const hasM = tiles.some(t => t.suit === 'm');
+  const hasP = tiles.some(t => t.suit === 'p');
+  const hasS = tiles.some(t => t.suit === 's');
+  const hasWind = tiles.some(t => t.type === 'honor' && t.rank <= 4);
+  const hasDragon = tiles.some(t => t.type === 'honor' && t.rank >= 5);
+  return hasM && hasP && hasS && hasWind && hasDragon;
+}
+
+function evaluateStandardHand(decomp, tiles, options) {
+  const detected = new Set();
+  const { pair, melds } = decomp;
+  const allMeldTiles = melds.flatMap(m => m.tiles);
+  const allTiles = [...allMeldTiles, pair, pair];
+
+  // 结构性番种
+  if (allTiles.every(t => t.type === 'num')) {
+    const suits = new Set(allTiles.map(t => t.suit));
+    if (suits.size === 1) detected.add('清一色');
+  }
+  if (isHunYiSe(allTiles)) detected.add('混一色');
+  if (isWuZi(allTiles)) detected.add('无字');
+  if (isDuanYao(allTiles)) detected.add('断幺');
+  if (isQueYiMen(allTiles)) detected.add('缺一门');
+  if (isWuMenQi(allTiles)) detected.add('五门齐');
+
+  if (melds.every(m => m.type === 'triplet')) detected.add('碰碰和');
+  if (melds.every(m => m.type === 'sequence') && pair.type === 'num') detected.add('平和');
+
+  // 全带/全大/全中/全小
+  if (isQuanDa(allTiles)) detected.add('全大');
+  if (isQuanZhong(allTiles)) detected.add('全中');
+  if (isQuanXiao(allTiles)) detected.add('全小');
+  if (isDaYuWu(allTiles)) detected.add('大于五');
+  if (isXiaoYuWu(allTiles)) detected.add('小于五');
+  if (isQuanShuangKe(allTiles)) detected.add('全双刻');
+  if (isTuiBuDao(allTiles)) detected.add('推不倒');
+  if (isQingYaoJiu(allTiles)) detected.add('清幺九');
+  if (isHunYaoJiu(allTiles)) detected.add('混幺九');
+
+  // 全带幺/全带五
+  const allGroups = [...melds, {tiles:[pair,pair], type:'pair'}];
+  if (allGroups.every(g => g.tiles.some(t => isTerminalOrHonor(t)))) detected.add('全带幺');
+  if (allGroups.every(g => g.tiles.some(t => t.type === 'num' && t.rank === 5))) detected.add('全带五');
+
+  // 刻子类番种
+  const triplets = melds.filter(m => m.type === 'triplet');
+  const windTrips = triplets.filter(m => m.tiles[0].type === 'honor' && m.tiles[0].rank <= 4);
+  const dragonTrips = triplets.filter(m => m.tiles[0].type === 'honor' && m.tiles[0].rank >= 5);
+  const terminalTrips = triplets.filter(m => isTerminalOrHonor(m.tiles[0]));
+
+  if (windTrips.length === 3) detected.add('三风刻');
+  if (dragonTrips.length === 2) detected.add('双箭刻');
+  if (dragonTrips.length === 1) detected.add('箭刻');
+  if (windTrips.some(m => m.tiles[0].rank === options.quanfeng)) detected.add('圈风刻');
+  if (windTrips.some(m => m.tiles[0].rank === options.menfeng)) detected.add('门风刻');
+  terminalTrips.forEach(() => detected.add('幺九刻'));
+
+  // 暗刻/杠
+  const anGang = options.anGang || 0;
+  const mingGang = options.mingGang || 0;
+  const totalGang = anGang + mingGang;
+  if (totalGang >= 4) detected.add('四杠');
+  if (totalGang >= 3) detected.add('三杠');
+  if (anGang >= 2) detected.add('双暗杠');
+  if (anGang >= 1) detected.add('暗杠');
+  if (mingGang >= 2) detected.add('双明杠');
+  if (mingGang >= 1) detected.add('明杠');
+
+  // 大四喜/小四喜/大三元/小三元
+  const windTripNames = windTrips.map(m => m.tiles[0].rank);
+  const dragonTripNames = dragonTrips.map(m => m.tiles[0].rank);
+  if (windTripNames.length === 4) detected.add('大四喜');
+  if (windTripNames.length === 3 && pair.type === 'honor' && pair.rank <= 4) detected.add('小四喜');
+  if (dragonTripNames.length === 3) detected.add('大三元');
+  if (dragonTripNames.length === 2 && pair.type === 'honor' && pair.rank >= 5) detected.add('小三元');
+  if (isZiYiSe(allTiles)) detected.add('字一色');
+
+  // 一色三同顺/四同顺
+  const seqs = melds.filter(m => m.type === 'sequence');
+  if (seqs.length >= 3) {
+    const seqKey = (m) => m.suit + m.start;
+    const seqGroups = {};
+    seqs.forEach(m => { seqGroups[seqKey(m)] = (seqGroups[seqKey(m)] || 0) + 1; });
+    const maxSame = Math.max(0, ...Object.values(seqGroups));
+    if (maxSame >= 4) detected.add('一色四同顺');
+    if (maxSame >= 3) detected.add('一色三同顺');
+  }
+
+  // 一色三节高/四节高
+  if (triplets.length >= 3) {
+    const sameSuitTrips = triplets.filter(m => m.tiles[0].type === 'num');
+    const suitGroups = {};
+    sameSuitTrips.forEach(m => {
+      if (!suitGroups[m.suit]) suitGroups[m.suit] = [];
+      suitGroups[m.suit].push(m.rank);
+    });
+    for (const suit in suitGroups) {
+      const ranks = suitGroups[suit].sort((a,b) => a-b);
+      // 检查连续递增
+      let maxConsec = 1, cur = 1;
+      for (let i=1; i<ranks.length; i++) {
+        if (ranks[i] === ranks[i-1]+1) { cur++; maxConsec = Math.max(maxConsec, cur); }
+        else cur = 1;
+      }
+      if (maxConsec >= 4) detected.add('一色四节高');
+      if (maxConsec >= 3) detected.add('一色三节高');
+    }
+  }
+
+  // 一色三步高/四步高
+  if (seqs.length >= 3) {
+    const suitSeqGroups = {};
+    seqs.forEach(m => {
+      if (!suitSeqGroups[m.suit]) suitSeqGroups[m.suit] = [];
+      suitSeqGroups[m.suit].push(m.start);
+    });
+    for (const suit in suitSeqGroups) {
+      const starts = suitSeqGroups[suit].sort((a,b) => a-b);
+      // 检查等差递增（步长1或2）
+      const checkSteps = (arr, len) => {
+        for (let i=0; i<=arr.length-len; i++) {
+          const step = arr[i+1] - arr[i];
+          if (step !== 1 && step !== 2) continue;
+          let ok = true;
+          for (let j=1; j<len-1; j++) {
+            if (arr[i+j+1] - arr[i+j] !== step) { ok = false; break; }
+          }
+          if (ok) return true;
+        }
+        return false;
+      };
+      if (starts.length >= 4 && checkSteps(starts, 4)) detected.add('一色四步高');
+      if (starts.length >= 3 && checkSteps(starts, 3)) detected.add('一色三步高');
+    }
+  }
+
+  // 一般高/喜相逢/连六/老少副
+  const seqBySuit = {};
+  seqs.forEach(m => {
+    if (!seqBySuit[m.suit]) seqBySuit[m.suit] = [];
+    seqBySuit[m.suit].push(m.start);
+  });
+  for (const suit in seqBySuit) {
+    const starts = seqBySuit[suit];
+    if (starts.filter(s => s === 1).length >= 1 && starts.filter(s => s === 7).length >= 1) detected.add('老少副');
+    if (starts.includes(1) && starts.includes(4)) detected.add('连六');
+    if (starts.includes(4) && starts.includes(7)) detected.add('连六');
+    // 一般高：两副相同顺子
+    const counts = {};
+    starts.forEach(s => counts[s] = (counts[s] || 0) + 1);
+    if (Object.values(counts).some(v => v >= 2)) detected.add('一般高');
+  }
+  // 喜相逢：两种花色相同顺子
+  const seqKeys = {};
+  seqs.forEach(m => { seqKeys[m.start] = (seqKeys[m.start] || new Set()); seqKeys[m.start].add(m.suit); });
+  if (Object.values(seqKeys).some(suits => suits.size >= 2)) detected.add('喜相逢');
+
+  // 清龙
+  for (const suit in seqBySuit) {
+    if (seqBySuit[suit].includes(1) && seqBySuit[suit].includes(4) && seqBySuit[suit].includes(7)) detected.add('清龙');
+  }
+
+  // 花龙
+  const has123 = ['m','p','s'].some(s => seqBySuit[s] && seqBySuit[s].includes(1));
+  const has456 = ['m','p','s'].some(s => seqBySuit[s] && seqBySuit[s].includes(4));
+  const has789 = ['m','p','s'].some(s => seqBySuit[s] && seqBySuit[s].includes(7));
+  if (has123 && has456 && has789) detected.add('花龙');
+
+  // 三同刻/双同刻
+  const tripRanks = {};
+  triplets.forEach(m => { if (m.tiles[0].type === 'num') tripRanks[m.rank] = (tripRanks[m.rank] || 0) + 1; });
+  if (Object.values(tripRanks).some(v => v >= 3)) detected.add('三同刻');
+  if (Object.values(tripRanks).some(v => v >= 2)) detected.add('双同刻');
+
+  // 三色双龙会：两种花色123+789，第三种花色5将
+  const has123suit = new Set(seqs.filter(m => m.start === 1).map(m => m.suit));
+  const has789suit = new Set(seqs.filter(m => m.start === 7).map(m => m.suit));
+  const dragonSuits = [...has123suit].filter(s => has789suit.has(s));
+  if (dragonSuits.length >= 2 && pair.suit && pair.rank === 5) detected.add('三色双龙会');
+
+  // 三色三同顺/三色三步高/三色三节高
+  const seqStartSuits = {};
+  seqs.forEach(m => { seqStartSuits[m.start] = (seqStartSuits[m.start] || new Set()); seqStartSuits[m.start].add(m.suit); });
+  if (Object.values(seqStartSuits).some(s => s.size >= 3)) detected.add('三色三同顺');
+  // 三色三步高：三种花色依次递增一个序数的顺子
+  for (let start=1; start<=5; start++) {
+    const suitsAtStart = new Set(seqs.filter(m => m.start === start).map(m => m.suit));
+    if (suitsAtStart.size === 3) {
+      const suitsAtNext = new Set(seqs.filter(m => m.start === start+1).map(m => m.suit));
+      const suitsAtNext2 = new Set(seqs.filter(m => m.start === start+2).map(m => m.suit));
+      if (suitsAtNext.size === 3 && suitsAtNext2.size === 3) detected.add('三色三步高');
+    }
+  }
+  // 三色三节高
+  const tripRankSuits = {};
+  triplets.forEach(m => { if (m.tiles[0].type === 'num') { tripRankSuits[m.rank] = (tripRankSuits[m.rank] || new Set()); tripRankSuits[m.rank].add(m.suit); } });
+  for (let r=1; r<=7; r++) {
+    if (tripRankSuits[r] && tripRankSuits[r].size === 3 &&
+        tripRankSuits[r+1] && tripRankSuits[r+1].size === 3 &&
+        tripRankSuits[r+2] && tripRankSuits[r+2].size === 3) {
+      detected.add('三色三节高');
+    }
+  }
+
+  // 四归一
+  const c = countTiles(allTiles);
+  if (Object.values(c).some(v => v === 4)) detected.add('四归一');
+
+  // 和牌方式与条件
+  if (options.menqian) detected.add('门前清');
+  if (options.zimo) detected.add('自摸');
+  if (options.menqian && options.zimo) detected.add('不求人');
+  if (options.gangshang) detected.add('杠上开花');
+  if (options.qianggang) detected.add('抢杠和');
+  if (options.juezhang) detected.add('和绝张');
+  if (options.lastTile) {
+    if (options.zimo) detected.add('妙手回春');
+    else detected.add('海底捞月');
+  }
+
+  // 边张/坎张/单钓将：需要知道和牌张，这里简单处理
+  // 由于无法从最终14张确定和牌张，需要用户指定，这里先跳过
+
+  // 花牌
+  const huaCount = options.hua || 0;
+  for (let i=0; i<Math.min(huaCount, 8); i++) detected.add('花牌');
+
+  return detected;
+}
+
+function evaluateSpecialHand(tiles, options) {
+  const detected = new Set();
+  if (isSevenPairs(tiles)) detected.add('七对');
+  if (isLianQiDui(tiles)) detected.add('连七对');
+  if (isThirteenOrphans(tiles)) detected.add('十三幺');
+  if (isAllNotAligned(tiles)) detected.add('七星不靠');
+  if (isCombinationDragon(tiles)) detected.add('组合龙');
+  if (isYiSeShuangLong(tiles)) detected.add('一色双龙会');
+  if (isJiuLianBaoDeng(tiles)) detected.add('九莲宝灯');
+  if (isLvYiSe(tiles)) detected.add('绿一色');
+  if (isZiYiSe(tiles)) detected.add('字一色');
+  if (isQingYaoJiu(tiles)) detected.add('清幺九');
+  if (isHunYaoJiu(tiles)) detected.add('混幺九');
+  if (isQingYiSe(tiles)) detected.add('清一色');
+  if (isHunYiSe(tiles)) detected.add('混一色');
+  if (isWuZi(tiles)) detected.add('无字');
+  if (isDuanYao(tiles)) detected.add('断幺');
+  if (isQueYiMen(tiles)) detected.add('缺一门');
+  if (isWuMenQi(tiles)) detected.add('五门齐');
+  if (isQuanDa(tiles)) detected.add('全大');
+  if (isQuanZhong(tiles)) detected.add('全中');
+  if (isQuanXiao(tiles)) detected.add('全小');
+  if (isDaYuWu(tiles)) detected.add('大于五');
+  if (isXiaoYuWu(tiles)) detected.add('小于五');
+  if (isQuanShuangKe(tiles)) detected.add('全双刻');
+  if (isTuiBuDao(tiles)) detected.add('推不倒');
+
+  if (options.menqian) detected.add('门前清');
+  if (options.zimo) detected.add('自摸');
+  if (options.menqian && options.zimo) detected.add('不求人');
+  if (options.gangshang) detected.add('杠上开花');
+  if (options.qianggang) detected.add('抢杠和');
+  if (options.juezhang) detected.add('和绝张');
+  if (options.lastTile) {
+    if (options.zimo) detected.add('妙手回春');
+    else detected.add('海底捞月');
+  }
+  const huaCount = options.hua || 0;
+  for (let i=0; i<Math.min(huaCount, 8); i++) detected.add('花牌');
+
+  return detected;
+}
+
+function applyExclusions(detected) {
+  // 按番数降序，移除被高番种排斥的低番种
+  const sorted = [...detected].sort((a,b) => (findPattern(b)?.fan || 0) - (findPattern(a)?.fan || 0));
+  const final = new Set();
+  sorted.forEach(name => {
+    const p = findPattern(name);
+    if (!p) return;
+    // 如果已被更高番的排斥项排除，则跳过
+    let excluded = false;
+    for (const ex of p.excludes) {
+      if (final.has(ex)) { excluded = true; break; }
+    }
+    if (!excluded) final.add(name);
+  });
+  // 同时检查是否已选中的高番排斥当前项
+  return final;
+}
+
+function analyzeHand() {
+  if (selectedHand.length !== 14) {
+    alert('请先选择 14 张手牌');
+    return;
+  }
+  const tiles = selectedHand.slice().sort((a,b) => a.id.localeCompare(b.id));
+  // 移除花牌
+  const handTiles = tiles.filter(t => !isFlower(t));
+  const flowerCount = tiles.filter(t => isFlower(t)).length;
+  if (handTiles.length !== 14) {
+    alert('花牌不计入手牌张数，请选择 14 张非花牌作为手牌');
+    return;
+  }
+
+  const options = {
+    menqian: document.getElementById('optMenqian').checked,
+    zimo: document.getElementById('optZimo').checked,
+    quanfeng: parseInt(document.getElementById('optQuanfeng').value),
+    menfeng: parseInt(document.getElementById('optMenfeng').value),
+    anGang: parseInt(document.getElementById('optAnGang').value) || 0,
+    mingGang: parseInt(document.getElementById('optMingGang').value) || 0,
+    hua: flowerCount + (parseInt(document.getElementById('optHua').value) || 0),
+    lastTile: document.getElementById('optLastTile').checked,
+    gangshang: document.getElementById('optGangShang').checked,
+    qianggang: document.getElementById('optQiangGang').checked,
+    juezhang: document.getElementById('optJueZhang').checked
+  };
+
+  // 清空之前选择
+  state.clear();
+
+  // 分析特殊牌型
+  let specialDetected = evaluateSpecialHand(handTiles, options);
+  let bestDecomp = null;
+  let bestFan = 0;
+  let bestDetected = new Set();
+
+  // 检查标准牌型
+  const decomps = findAllStandardDecompositions(handTiles);
+  if (decomps.length > 0) {
+    decomps.forEach(decomp => {
+      const detected = evaluateStandardHand(decomp, handTiles, options);
+      const afterEx = applyExclusions(detected);
+      const total = [...afterEx].reduce((sum, n) => sum + (findPattern(n)?.fan || 0), 0);
+      if (total > bestFan) {
+        bestFan = total;
+        bestDetected = afterEx;
+        bestDecomp = decomp;
+      }
+    });
+  }
+
+  // 比较特殊牌型与标准牌型得分
+  const specialAfterEx = applyExclusions(specialDetected);
+  const specialFan = [...specialAfterEx].reduce((sum, n) => sum + (findPattern(n)?.fan || 0), 0);
+
+  let finalDetected, handType;
+  if (specialFan > bestFan) {
+    finalDetected = specialAfterEx;
+    handType = '特殊牌型';
+  } else if (bestDecomp) {
+    finalDetected = bestDetected;
+    handType = '标准型（4面子+1雀头）';
+  } else {
+    finalDetected = new Set();
+    handType = '未识别为有效和牌';
+  }
+
+  // 应用互斥后设置到主清单
+  finalDetected.forEach(name => setPatternChecked(name, true));
+  updateSummary();
+
+  // 显示结果
+  const panel = document.getElementById('analyzePanel');
+  const result = document.getElementById('analyzeResult');
+  panel.style.display = 'block';
+  const names = [...finalDetected].sort((a,b) => (findPattern(b)?.fan || 0) - (findPattern(a)?.fan || 0));
+  result.innerHTML = `
+    <div style="margin-bottom:8px;"><strong>识别结构：</strong>${handType}</div>
+    <div style="margin-bottom:8px;"><strong>总番数：</strong>${names.reduce((s,n)=>s+(findPattern(n)?.fan||0),0)} 番</div>
+    <div><strong>识别番种：</strong></div>
+    <div class="detected-patterns">
+      ${names.length ? names.map(n => `<span class="tag">${n} ${findPattern(n)?.fan||0}番</span>`).join('') : '<span style="color:#6c757d">未识别到番种</span>'}
+    </div>
+  `;
+  switchTab('manual');
+}
+
+// ========== 初始化 ==========
+function init() {
+  renderGroups();
+  renderTileSelector();
+  document.getElementById('resetBtn').onclick = resetAll;
+  document.getElementById('winType').onchange = updateSummary;
+  updateSummary();
+}
+
+init();
+</script>
+</body>
+</html>
