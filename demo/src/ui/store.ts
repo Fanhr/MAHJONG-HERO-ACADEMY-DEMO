@@ -35,7 +35,7 @@ export interface CardToast {
 }
 
 interface UIStore {
-  screen: 'select' | 'briefing' | 'battle' | 'result';
+  screen: 'intro' | 'select' | 'briefing' | 'battle' | 'result';
   state: GameState | null;
   decision: Decision | null;
   humanId: number;
@@ -51,6 +51,7 @@ interface UIStore {
   newGame: (heroId?: HeroId, seed?: number) => void;
   humanAction: (action: Parameters<typeof applyAction>[1]) => void;
   toSelect: () => void;
+  toIntro: () => void;
   toBriefing: () => void;
   dismissGoldGuide: () => void;
   _advance: () => void;
@@ -59,7 +60,7 @@ interface UIStore {
 }
 
 export const useGame = create<UIStore>((set, get) => ({
-  screen: 'select',
+  screen: 'intro',
   state: null,
   decision: null,
   humanId: 0,
@@ -81,6 +82,8 @@ export const useGame = create<UIStore>((set, get) => ({
   },
 
   toSelect: () => set({ screen: 'select', state: null, decision: null, floaters: [], attacks: [], toasts: [], demoResult: null, showGoldGuide: false }),
+
+  toIntro: () => set({ screen: 'intro' }),
 
   newGame: (_heroId, seed = Math.floor(Math.random() * 1e9)) => {
     // 玩家固定为「咯哒」(山鸣学院)，3 名人机为「爱麻鸽1~3号」

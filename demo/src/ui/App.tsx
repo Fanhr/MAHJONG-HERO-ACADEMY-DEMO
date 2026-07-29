@@ -1,4 +1,5 @@
 import { useGame } from './store';
+import Intro from './screens/Intro';
 import HeroSelect from './screens/HeroSelect';
 import Briefing from './screens/Briefing';
 import Battle from './screens/Battle';
@@ -10,6 +11,7 @@ export default function App() {
   return (
     <div className="min-h-full font-sans text-parchment">
       <ErrorBoundary>
+        {screen === 'intro' && <Intro />}
         {screen === 'select' && <HeroSelect />}
         {screen === 'briefing' && <Briefing />}
         {screen === 'battle' && <Battle />}
