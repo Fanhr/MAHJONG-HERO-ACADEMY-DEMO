@@ -5,7 +5,7 @@
  */
 import { canWin, isTenpai } from '../engine/winning';
 import { evaluateYaku } from '../engine/yaku';
-import { fanToDamage } from '../engine/constants';
+import { baseDamage } from '../engine/constants';
 import { engineHooks } from '../engine/hooks';
 import type { GameState, Meld, PlayerId } from '../engine/state';
 
@@ -33,7 +33,7 @@ function computeWaits(state: GameState, pid: PlayerId, concealed: number[], meld
     const res = evaluateYaku({ concealedTiles: hand, melds, winningTile: t, isTsumo: false });
     if (!res) continue;
     const fan = res.fan + engineHooks.fanBonus(state, pid, hand, false);
-    const base = fanToDamage(fan);
+    const base = baseDamage(fan, res.yakumanCount);
     const dmg = engineHooks.modifyOutgoingDamage(state, pid, base, false);
     out.push({
       tile: t,

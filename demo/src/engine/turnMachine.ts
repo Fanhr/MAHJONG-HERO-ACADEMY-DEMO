@@ -42,6 +42,7 @@ import {
   applyDamageSnapshot,
   buildRonSnapshot,
   buildTsumoSnapshot,
+  checkGameOver,
   type WinnerInfo,
 } from './damage';
 import { resolveChongfengji } from './heroes';
@@ -495,8 +496,9 @@ function doTributeExchange(s: GameState, giveTile: number, takeFrom: PlayerId): 
 /** 上贡流程结束：恢复行动顺序（自摸从和牌者下家；荣和从点炮者下家）。 */
 function finishTribute(s: GameState): void {
   const pt = s.pendingTribute!;
-  const resumeFrom = pt.isSelfDraw ? pt.winner : pt.discarder ?? pt.winner;
   s.pendingTribute = null;
+  if (checkGameOver(s)) return; // 击杀致仅剩 1 人时对局结束
+  const resumeFrom = pt.isSelfDraw ? pt.winner : pt.discarder ?? pt.winner;
   s.turn = nextAlive(s, resumeFrom);
   s.phase = 'start';
 }
@@ -574,10 +576,9 @@ function applyWin(s: GameState, snapWinners: WinnerInfo[], isSelfDraw: boolean, 
     }
   }
 
-  // 上贡机制（ver2.0 §3.2.1）：F>0 且有应上贡者时进入 tribute 阶段，等玩家交互
-  if (s.phase === 'gameOver') return;
+  // 上贡机制（ver2.0 §3.2.1）：有番或有役满且有应上贡者时进入 tribute 阶段，等玩家交互
   const w0 = snapWinners[0];
-  if (w0.fan <= 0) return;
+  if (w0.fan <= 0 && (w0.yakumanCount ?? 0) <= 0) return;
   const tributaries = isSelfDraw
     ? snap.entries.map((e) => e.target)
     : discarder !== undefined
@@ -633,7 +634,8 @@ function resolveTsumo(s: GameState): void {
   removeOne(p.hand, tile);
   s.justDrew = false;
   s.drawnTile = null;
-  if (s.phase === 'gameOver' || s.phase === 'tribute') return;
+  if (s.phase === 'tribute') return;
+  if (checkGameOver(s)) return;
   s.turn = nextAlive(s, winner);
   s.phase = 'start';
 }
@@ -647,7 +649,8 @@ function resolveRon(s: GameState, winners: PlayerId[]): void {
   });
   s.pending = null;
   applyWin(s, infos, false, tile, discarder);
-  if (s.phase === 'gameOver' || s.phase === 'tribute') return;
+  if (s.phase === 'tribute') return;
+  if (checkGameOver(s)) return;
   s.turn = nextAlive(s, discarder);
   s.phase = 'start';
 }
@@ -694,9 +697,9 @@ function resolveMeldWindow(s: GameState): void {
   const kan = entries.find(([, v]) => v.kind === 'kan');
   const pon = entries.find(([, v]) => v.kind === 'pon');
   const chi = entries.find(([, v]) => v.kind === 'chi');
-  const claimed = rons.length > 0 || !!kan || !!pon || !!chi;
-  // 冲锋鸡先结算（被响应 → 打出者若为咯哒则自伤）
-  settleYaoji(s, claimed);
+  // 冲锋鸡的“被响应”仅指副露（吃/碰/杠）；荣和不算副露响应
+  const meldClaimed = !!kan || !!pon || !!chi;
+  settleYaoji(s, meldClaimed);
   if (s.phase === 'gameOver') return;
   if (rons.length > 0) {
     resolveRon(s, rons);
