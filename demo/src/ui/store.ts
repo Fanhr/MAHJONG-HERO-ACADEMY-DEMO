@@ -45,11 +45,14 @@ interface UIStore {
   lastSeq: number;
   busy: boolean;
   demoResult: 'pass' | 'fail' | null;
+  /** 首次获得金豆的引导浮层是否正在显示。 */
+  showGoldGuide: boolean;
 
   newGame: (heroId?: HeroId, seed?: number) => void;
   humanAction: (action: Parameters<typeof applyAction>[1]) => void;
   toSelect: () => void;
   toBriefing: () => void;
+  dismissGoldGuide: () => void;
   _advance: () => void;
   _emitFloaters: (s: GameState) => void;
   _finish: (s: GameState) => void;
@@ -66,8 +69,18 @@ export const useGame = create<UIStore>((set, get) => ({
   lastSeq: 0,
   busy: false,
   demoResult: null,
+  showGoldGuide: false,
 
-  toSelect: () => set({ screen: 'select', state: null, decision: null, floaters: [], attacks: [], toasts: [], demoResult: null }),
+  dismissGoldGuide: () => {
+    set({ showGoldGuide: false });
+    try {
+      localStorage.setItem('mha_seen_gold', '1');
+    } catch {
+      /* ignore */
+    }
+  },
+
+  toSelect: () => set({ screen: 'select', state: null, decision: null, floaters: [], attacks: [], toasts: [], demoResult: null, showGoldGuide: false }),
 
   newGame: (_heroId, seed = Math.floor(Math.random() * 1e9)) => {
     // 玩家固定为「咯哒」(山鸣学院)，3 名人机为「爱麻鸽1~3号」
@@ -78,7 +91,7 @@ export const useGame = create<UIStore>((set, get) => ({
       { heroId: 'aimage', isAI: true, name: '爱麻鸽3号' },
     ];
     const s = startGame({ seed, heroes });
-    set({ screen: 'battle', state: s, decision: null, floaters: [], attacks: [], toasts: [], lastSeq: 0, busy: false, demoResult: null });
+    set({ screen: 'battle', state: s, decision: null, floaters: [], attacks: [], toasts: [], lastSeq: 0, busy: false, demoResult: null, showGoldGuide: false });
     get()._advance();
   },
 
@@ -169,6 +182,27 @@ export const useGame = create<UIStore>((set, get) => ({
             cardName,
             desc,
           });
+        }
+      } else if (e.type === 'gold' && e.data) {
+        const data = e.data as Record<string, unknown>;
+        const player = Number(data.player);
+        const amount = Number(data.amount);
+        const kind = typeof data.kind === 'string' ? data.kind : 'instant';
+        if (!Number.isNaN(player) && !Number.isNaN(amount)) {
+          toasts.push({
+            id: `t${e.seq}-${Math.random().toString(36).slice(2, 6)}`,
+            playerName: s.players[player]?.name ?? `玩家${player}`,
+            cardName: kind === 'settle' ? '金豆终局奖励' : '金豆奖励',
+            desc: kind === 'settle' ? `结算奖励 +${amount} 金豆` : `和牌获得 +${amount} 金豆`,
+          });
+          // 首次获得金豆即时奖励时弹引导
+          if (kind === 'instant' && !get().showGoldGuide) {
+            try {
+              if (localStorage.getItem('mha_seen_gold') !== '1') set({ showGoldGuide: true });
+            } catch {
+              set({ showGoldGuide: true });
+            }
+          }
         }
       } else if ((e.type === 'damage' || e.type === 'skill-damage') && e.data) {
         const data = e.data as Record<string, unknown>;

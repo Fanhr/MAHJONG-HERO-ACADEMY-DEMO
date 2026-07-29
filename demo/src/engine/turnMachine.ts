@@ -557,6 +557,23 @@ function applyWin(s: GameState, snapWinners: WinnerInfo[], isSelfDraw: boolean, 
   applyDamageSnapshot(s, snap);
   for (const w of snapWinners) engineHooks.onWin(s, w.player, isSelfDraw);
 
+  // 金豆即时奖励（ver3.0 §3.2.2）：和牌者获得本次伤害×100%（向上取整）
+  // 荣和=对该点炮者造成的伤害；自摸=全部对手承受伤害之和（总输出）
+  for (const w of snapWinners) {
+    const base = isSelfDraw
+      ? snap.entries.filter((e) => e.source === w.player).reduce((s2, e) => s2 + e.amount, 0)
+      : snap.entries.filter((e) => e.source === w.player && e.target === discarder).reduce((s2, e) => s2 + e.amount, 0);
+    const reward = Math.ceil(base);
+    if (reward > 0) {
+      s.players[w.player].gold += reward;
+      pushEvent(s, 'gold', `${s.players[w.player].name} 和牌获得金豆 ${reward}`, true, {
+        player: w.player,
+        amount: reward,
+        kind: 'instant',
+      });
+    }
+  }
+
   // 上贡机制（ver2.0 §3.2.1）：F>0 且有应上贡者时进入 tribute 阶段，等玩家交互
   if (s.phase === 'gameOver') return;
   const w0 = snapWinners[0];

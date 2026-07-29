@@ -18,6 +18,29 @@ import {
 const r1 = (x: number) => Math.round(x * 10) / 10;
 
 /**
+ * 玩家结算（被淘汰或获胜）时发放金豆终局结算奖励（ver3.0 §7.4）。
+ * 奖励 = 结算时点的场上和牌总伤害 × 比例（向上取整）。
+ * 4 人局比例序列 0%/10%/20%/30%，按结算顺序从第 1 位（最先淘汰）到第 4 位（获胜者）。
+ */
+function grantSettleGold(state: GameState, pid: PlayerId): void {
+  if (state.settleOrder.includes(pid)) return; // 已结算过
+  state.settleOrder.push(pid);
+  const i = state.settleOrder.length;
+  const ratio = (i - 1) * 0.1; // 第1位0%，第2位10%...第4位30%
+  const reward = Math.ceil(state.totalDamageDealt * ratio);
+  if (reward > 0) {
+    state.players[pid].gold += reward;
+    pushEvent(
+      state,
+      'gold',
+      `${state.players[pid].name} 获得金豆终局结算奖励 ${reward}（第${i}位结算，比例 ${Math.round(ratio * 100)}%）`,
+      true,
+      { player: pid, amount: reward, kind: 'settle' }
+    );
+  }
+}
+
+/**
  * 玩家（非 AI）掉血保底：生命每累计下降 30 点，标记下次抽卡必得一张“生”类技能卡（见需求 5）。
  */
 function notePlayerDamage(p: PlayerState): void {
@@ -134,10 +157,14 @@ export function applyDamageSnapshot(state: GameState, snap: DamageSnapshot): voi
     }
   }
 
+  // 1.6) 累计场上和牌总伤害（ver3.0 §0.5，金豆终局奖励基准）
+  state.totalDamageDealt = r1(state.totalDamageDealt + snap.entries.reduce((s, e) => s + e.amount, 0));
+
   // 2) 统一判定淘汰（HP 可为负）
   for (const p of state.players) {
     if (p.alive && p.hp <= 0) {
       p.alive = false;
+      grantSettleGold(state, p.id);
       pushEvent(state, 'eliminate', `${p.name} 被淘汰`, true, { player: p.id });
     }
   }
@@ -189,6 +216,7 @@ export function applyDirectDamage(
   for (const p of state.players) {
     if (p.alive && p.hp <= 0) {
       p.alive = false;
+      grantSettleGold(state, p.id);
       pushEvent(state, 'eliminate', `${p.name} 被淘汰`, true, { player: p.id });
     }
   }
@@ -201,6 +229,7 @@ export function checkGameOver(state: GameState): boolean {
   if (alive.length === 1) {
     state.winner = alive[0].id;
     state.phase = 'gameOver';
+    grantSettleGold(state, state.winner); // 获胜者按最后一位结算（30%）
     pushEvent(state, 'game-over', `对局结束，${state.players[state.winner].name} 获胜！`, true, {
       winner: state.winner,
     });
@@ -212,6 +241,7 @@ export function checkGameOver(state: GameState): boolean {
     for (const p of state.players) if (p.hp > best.hp) best = p;
     state.winner = best.id;
     state.phase = 'gameOver';
+    if (!state.settleOrder.includes(best.id)) grantSettleGold(state, best.id);
     pushEvent(state, 'game-over', `对局结束，${best.name} 以最高残余生命获胜！`, true, { winner: best.id });
     return true;
   }

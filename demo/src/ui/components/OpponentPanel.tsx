@@ -29,6 +29,7 @@ export interface OpponentData {
   handCount: number;
   melds: Meld[];
   hasEgg: boolean;
+  gold: number;
   safeCount: number;
   statuses: StatusEffect[];
   floaters: Floater[];
@@ -77,6 +78,7 @@ export default function OpponentPanel({ data, compact }: { data: OpponentData; c
         </div>
         <div className="flex shrink-0 items-center gap-1 text-[10px]">
           {data.hasEgg && <span className="rounded bg-yellow-500/70 px-1 text-ink-900">蛋</span>}
+          {data.gold > 0 && <span className="rounded bg-yellow-600/70 px-1 font-bold text-white">豆{data.gold}</span>}
         </div>
       </div>
 

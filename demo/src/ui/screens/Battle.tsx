@@ -44,6 +44,8 @@ export default function Battle() {
   const floaters = useGame((s) => s.floaters);
   const attacks = useGame((s) => s.attacks);
   const toasts = useGame((s) => s.toasts);
+  const showGoldGuide = useGame((s) => s.showGoldGuide);
+  const dismissGoldGuide = useGame((s) => s.dismissGoldGuide);
   const busy = useGame((s) => s.busy);
   const humanAction = useGame((s) => s.humanAction);
 
@@ -88,6 +90,7 @@ export default function Battle() {
       handCount: p.handCount,
       melds: p.melds,
       hasEgg: p.eggIndicator !== null,
+      gold: p.gold,
       safeCount: p.safeTileCount,
       statuses: p.statuses,
       floaters: seatFloaters(id),
@@ -108,6 +111,7 @@ export default function Battle() {
     isTurn: activeActor === humanId,
     melds: self.melds,
     eggIndicator: self.eggIndicator,
+    gold: self.gold,
     safeCount: self.safeTiles.length,
     statuses: self.statuses,
     floaters: seatFloaters(humanId),
@@ -330,6 +334,32 @@ export default function Battle() {
           onClose={() => setShowGuide(false)}
           activeHeroes={state.players.map((p) => p.heroId)}
         />
+      )}
+
+      {/* 首次获得金豆引导 */}
+      {showGoldGuide && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="glass-strong w-full max-w-md rounded-2xl p-5">
+            <h3 className="mb-2 text-lg font-black text-gold">金豆 · 和牌奖励</h3>
+            <p className="mb-3 text-sm leading-relaxed text-parchment">
+              每次和牌结算后，和牌者会立即获得与本次<span className="text-amber-300">伤害数值相等</span>的金豆（向上取整）。
+            </p>
+            <ul className="mb-3 list-disc pl-5 text-[12px] text-muted">
+              <li>荣和：以对点炮者造成的伤害为基准</li>
+              <li>自摸：以全部对手承受伤害之和（总输出）为基准</li>
+              <li>对局结束时，按结算顺序还会发放 0%/10%/20%/30% 的终局奖励</li>
+            </ul>
+            <p className="mb-3 text-[11px] text-muted">金豆用于局外养成（解锁英雄/技能卡/装扮），不计入本局胜负。</p>
+            <div className="flex justify-end">
+              <button
+                onClick={dismissGoldGuide}
+                className="rounded-lg bg-gradient-to-r from-amber-500 to-orange-600 px-5 py-2 text-sm font-bold text-ink-900 active:scale-95"
+              >
+                知道了
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* 安全牌首次摸切引导 */}

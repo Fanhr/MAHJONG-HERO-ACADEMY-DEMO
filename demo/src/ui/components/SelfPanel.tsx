@@ -30,6 +30,7 @@ export interface SelfPanelData {
   isTurn: boolean;
   melds: Meld[];
   eggIndicator: number | null;
+  gold: number;
   safeCount: number;
   statuses: StatusEffect[];
   floaters: Floater[];
@@ -74,6 +75,7 @@ export default function SelfPanel({ data }: { data: SelfPanelData }) {
         </span>
         <span className="text-sm font-semibold text-parchment">{data.name}</span>
         <span className="text-xs font-bold text-gold">AP {data.ap}/{data.apMax}</span>
+        <span className="rounded bg-yellow-600/70 px-1 text-[11px] font-bold text-white">金豆 {data.gold}</span>
         {data.eggIndicator !== null && (
           <span className="rounded bg-yellow-500/80 px-1 text-[11px] font-bold text-ink-900">指示牌 {tileName(data.eggIndicator)}</span>
         )}

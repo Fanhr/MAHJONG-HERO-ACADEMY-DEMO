@@ -145,6 +145,7 @@ export interface PlayerState {
   firstDiscardDone: boolean; // 是否完成本局第一次摸切
   healPityGranted: number; // 玩家·已发放的“掉血保底生牌”次数（每掉 30 触发一次）
   healPityDue: boolean; // 玩家·下次抽卡是否必出一张“生”类技能卡
+  gold: number; // 金豆累计（即时奖励+终局结算奖励；跨局延续）
 }
 
 export type MeldIntentKind = 'ron' | 'kan' | 'pon' | 'chi' | 'pass';
@@ -209,6 +210,10 @@ export interface GameState {
   winFanContext: number | null; // 当前正在结算的和牌番数（供“平和鸽”等按番数判定的效果读取）
   /** 和牌上贡机制（ver2.0 §3.2.1）待处理状态；非 null 时处于 tribute 阶段。 */
   pendingTribute: PendingTribute | null;
+  /** 场上和牌总伤害（结算时点）：本场对局累计的全部和牌伤害之和（ver3.0 §0.5）。 */
+  totalDamageDealt: number;
+  /** 结算顺序：玩家被淘汰/获胜的先后（第1位最先淘汰，获胜者最后）。用于金豆终局奖励比例。 */
+  settleOrder: PlayerId[];
 }
 
 /** 单名应上贡玩家提交的上贡牌。tile===null 表示尚未提交；-1 表示该玩家无可用非安全手牌、跳过。 */
@@ -291,6 +296,7 @@ function makePlayer(id: PlayerId, choice: HeroChoice): PlayerState {
     firstDiscardDone: false,
     healPityGranted: 0,
     healPityDue: false,
+    gold: 0,
   };
 }
 
@@ -345,6 +351,8 @@ export function initGame(opts: InitOptions): GameState {
     pendingYaojiDiscarder: null,
     winFanContext: null,
     pendingTribute: null,
+    totalDamageDealt: 0,
+    settleOrder: [],
   };
   // 体验保障：玩家（非 AI）初始手牌保证含 1 张幺鸡，便于展示“鸡”系技能
   const humanSeat = players.findIndex((p) => !p.isAI);

@@ -36,6 +36,8 @@ export interface PublicPlayer {
   safeTileCount: number;
   reserveCount: number;
   cooldownCount: number;
+  /** 金豆累计（即时奖励数额为公开信息，ver3.0 §3.2.2）。 */
+  gold: number;
   /** 咯哒·鸡生蛋指示牌（规则信息，可公开）。 */
   eggIndicator: number | null;
   /** 场面可观察到的状态效果（不泄露隐藏手牌信息）。 */
@@ -59,6 +61,7 @@ export interface SelfInfo {
   reserve: string[];
   cooldownCount: number;
   statuses: StatusEffect[];
+  gold: number;
   eggIndicator: number | null;
   firstDiscardDone: boolean;
   /** 上贡机制待处理状态（tile 按可见性过滤：和牌者看全部，上贡者看自己，其余背面）。 */
@@ -115,6 +118,7 @@ function toPublicPlayer(p: PlayerState): PublicPlayer {
     safeTileCount: p.safeTiles.length,
     reserveCount: p.reserve.length,
     cooldownCount: p.cooldown.length,
+    gold: p.gold,
     eggIndicator: p.eggIndicator,
     statuses: p.statuses,
   };
@@ -147,6 +151,7 @@ function toSelfInfo(p: PlayerState): SelfInfo {
     reserve: p.reserve,
     cooldownCount: p.cooldown.length,
     statuses: p.statuses,
+    gold: p.gold,
     eggIndicator: p.eggIndicator,
     firstDiscardDone: p.firstDiscardDone,
     pendingTribute: null,
